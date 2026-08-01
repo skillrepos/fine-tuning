@@ -1,0 +1,20 @@
+Copyright (c) 2026 Tech Skills Transformations LLC and Brent C. Laster.
+All rights reserved.
+
+These materials are provided for educational use only by the attendees of
+Tech Skills Transformations workshops.
+
+Permission is granted to workshop attendees to use, run, and modify this
+material for their own learning. Redistribution, resale, or use of these
+materials to deliver training to third parties is not permitted without
+prior written consent from Tech Skills Transformations LLC.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY.
+
+Third-party models and datasets referenced by these labs (distilgpt2,
+HuggingFaceTB/SmolLM2-360M-Instruct, TinyLlama/TinyLlama-1.1B-Chat-v1.0) are
+covered by their own licenses on the Hugging Face Hub.

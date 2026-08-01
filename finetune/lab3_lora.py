@@ -1,0 +1,220 @@
+"""
+Lab 3 - LoRA fine-tuning with TRL.
+
+Same task, a model 4x larger, and this time we train about two percent of
+the weights instead of all of them.
+
+LoRA freezes the base model and injects a pair of small matrices next to the
+layers we care about. During training only those matrices move:
+
+        h = W0 @ x  +  (alpha / r) * B @ A @ x
+            ^frozen         ^trainable, rank r
+
+Because r is tiny (8, 16, 32) compared to the layer width, B @ A has a few
+million parameters instead of a few hundred million.
+"""
+
+import sys, os, time
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import LoraConfig, get_peft_model
+from trl import SFTTrainer, SFTConfig
+
+from common.triage import (
+    load_tickets, to_prompt_completion, generate_predictions,
+    score, print_scores, save_result, param_report, OUT_DIR,
+)
+
+BASE_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"
+OUTPUT_DIR = os.path.join(OUT_DIR, "smollm2-lora")
+MAX_STEPS = 24           # Lab 4 reuses this exact budget for a fair comparison
+N_EVAL = 20
+
+
+# ==========================================================================
+# STEP 1 - Load the base model
+# ==========================================================================
+print("\n" + "=" * 70)
+print(f"STEP 1: Load {BASE_MODEL}")
+print("=" * 70)
+
+tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
+# Same trap as Lab 2: PAD must not share an id with EOS, or masking the padding
+# also erases every real EOS. SmolLM2 aliases them by default -- but unlike GPT-2
+# it already ships a spare special token, so we can just point PAD at that and
+# leave the embedding table alone.
+if tokenizer.pad_token_id == tokenizer.eos_token_id:
+    tokenizer.pad_token = "<|endoftext|>"
+print(f"\n  pad id = {tokenizer.pad_token_id}, eos id = {tokenizer.eos_token_id}")
+
+model = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.float32)
+param_report(model, "SmolLM2-360M base (before LoRA)")
+
+
+# ==========================================================================
+# STEP 2 - Find out what the layers are actually called
+# ==========================================================================
+print("\n" + "=" * 70)
+print("STEP 2: Which modules can LoRA target?")
+print("=" * 70)
+
+names = sorted({
+    n.split(".")[-1]
+    for n, m in model.named_modules()
+    if isinstance(m, torch.nn.Linear)
+})
+print(f"\n  Linear module names in this architecture: {names}")
+print("""
+  This matters and it is architecture-specific:
+    Llama-style (SmolLM2, TinyLlama, Phi-3, Qwen, Mistral)
+        -> q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj
+    GPT-2 style (distilgpt2)
+        -> c_attn, c_proj   (and they are Conv1D, not Linear!)
+
+  Copying a target_modules list from a blog post written for a different model
+  family is the single most common LoRA mistake. You can also pass
+  target_modules="all-linear" and let PEFT work it out.
+""")
+
+
+# ==========================================================================
+# STEP 3 - Configure LoRA
+# ==========================================================================
+print("\n" + "=" * 70)
+print("STEP 3: Configure LoRA")
+print("=" * 70)
+
+# TODO 1: configure LoRA -- rank 16, alpha 32, dropout 0.05, no bias,
+#         task_type CAUSAL_LM, and target the attention projections
+#         (q/k/v/o) plus the MLP ones (gate/up/down) you listed in
+#         Step 2. Leave use_dora=False for now.
+peft_config = LoraConfig(
+    r=16,
+    lora_alpha=32,
+)
+print(f"\n  r={peft_config.r}  alpha={peft_config.lora_alpha}  "
+      f"scaling={peft_config.lora_alpha / peft_config.r}")
+print(f"  target_modules={peft_config.target_modules}")
+
+
+# ==========================================================================
+# STEP 4 - Wrap the model and look at the parameter count
+# ==========================================================================
+print("\n" + "=" * 70)
+print("STEP 4: Apply LoRA")
+print("=" * 70)
+
+# TODO 2: wrap the base model with the LoRA config, then print the
+#         trainable-parameter summary.
+peft_model = None
+
+print("""
+  That percentage is the whole point of this workshop. Everything else --
+  the optimizer state, the gradients, the memory you need to hold them -- is
+  proportional to the TRAINABLE parameters, not the total.
+""")
+
+
+# ==========================================================================
+# STEP 5 - Data, in TRL's prompt/completion form
+# ==========================================================================
+print("\n" + "=" * 70)
+print("STEP 5: Prepare the dataset for TRL")
+print("=" * 70)
+
+ds = load_tickets().map(to_prompt_completion)
+train_ds = ds["train"].remove_columns(
+    [c for c in ds["train"].column_names if c not in ("prompt", "completion")]
+)
+print(train_ds)
+print(f"\n  Because the columns are named 'prompt' and 'completion', TRL sets")
+print(f"  completion_only_loss=True by itself -- the prompt tokens get labels")
+print(f"  of -100 and contribute nothing to the loss. In Lab 2 we did NOT do")
+print(f"  that: distilgpt2 was graded on re-predicting the ticket text too.")
+
+
+# ==========================================================================
+# STEP 6 - Train
+# ==========================================================================
+print("\n" + "=" * 70)
+print(f"STEP 6: Train the adapter, {MAX_STEPS} steps (about 2 minutes)")
+print("=" * 70)
+
+# TODO 3: configure SFTConfig -- MAX_STEPS steps, batch 8, lr 1e-3,
+#         cosine schedule, 10%% warmup, log every 4 steps, CPU only,
+#         max_length 192, no packing.
+#         Then build the SFTTrainer around peft_model and train_ds.
+args = SFTConfig(
+    output_dir=OUTPUT_DIR,
+)
+
+trainer = SFTTrainer(
+    model=peft_model,
+    args=args,
+)
+
+t0 = time.time()
+result = trainer.train()
+elapsed = time.time() - t0
+print(f"\n  Trained in {elapsed:.0f}s   final loss {result.training_loss:.4f}")
+
+
+# ==========================================================================
+# STEP 7 - Save just the adapter
+# ==========================================================================
+print("\n" + "=" * 70)
+print("STEP 7: Save the adapter and compare artifact sizes")
+print("=" * 70)
+
+# TODO 4: save the adapter (not the whole model) and the tokenizer.
+pass
+
+adapter_mb = sum(
+    os.path.getsize(os.path.join(OUTPUT_DIR, f))
+    for f in os.listdir(OUTPUT_DIR)
+    if os.path.isfile(os.path.join(OUTPUT_DIR, f))
+) / 1024 ** 2
+# Count the BASE weights only -- get_base_model() still has the adapters attached.
+full_mb = sum(p.numel() * 4 for n, p in peft_model.get_base_model().named_parameters()
+              if "lora_" not in n) / 1024 ** 2
+print(f"\n  Files written: {sorted(os.listdir(OUTPUT_DIR))}")
+print(f"  Adapter directory        : {adapter_mb:8.1f} MB")
+print(f"  A full copy would be     : {full_mb:8.1f} MB")
+print(f"  Ratio                    : {full_mb / adapter_mb:8.0f}x smaller")
+print("""
+  One base model in memory, many adapters on disk. That is how you ship
+  twenty fine-tuned variants without twenty copies of the weights.
+""")
+
+
+# ==========================================================================
+# STEP 8 - Evaluate
+# ==========================================================================
+print("\n" + "=" * 70)
+print("STEP 8: Evaluate the LoRA model")
+print("=" * 70)
+
+eval_rows = list(load_tickets()["eval"])[:N_EVAL]
+preds = generate_predictions(peft_model, tokenizer, eval_rows, max_new_tokens=24, show=3)
+
+s = score(preds, eval_rows)
+print_scores("LoRA - SmolLM2-360M", s)
+save_result("lora_smollm2", s, {
+    "model": BASE_MODEL, "trained": True, "method": "lora",
+    "rank": peft_config.r, "alpha": peft_config.lora_alpha, "steps": MAX_STEPS,
+    "train_seconds": round(elapsed), "artifact_mb": round(adapter_mb, 1),
+    "final_loss": round(result.training_loss, 4),
+})
+
+print("""
+  Compare with Lab 2. A 4x larger model, ~2.3% of the parameters trained, an
+  artifact measured in megabytes instead of hundreds of megabytes.
+
+  OPTIONAL (about 2 more minutes): set use_dora=True in Step 3 and rerun.
+  DoRA splits each weight update into a magnitude and a direction and only
+  applies the low-rank update to the direction. It usually buys a little
+  quality at low rank, and costs a little speed. At r=16 the difference is
+  small -- at r=4 it is much more visible, which is the real use case.
+""")

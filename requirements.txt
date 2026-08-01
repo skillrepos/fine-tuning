@@ -1,0 +1,33 @@
+# Fine-Tuning Small AI Models: LoRA, QLoRA & Evaluation
+# Revision 1.0 - 07/31/26
+#
+# NOTE: install torch FIRST from the CPU wheel index, or pip drags in ~3 GB of
+# CUDA libraries you cannot use on a Codespace. scripts/pysetup.sh does this
+# for you:
+#     pip install "torch>=2.9" --index-url https://download.pytorch.org/whl/cpu
+
+# --- core training stack ---------------------------------------------------
+transformers>=5.14.0
+accelerate>=1.14.0
+datasets>=5.0.0
+
+# --- parameter-efficient fine-tuning ---------------------------------------
+peft>=0.20.0            # LoRA, DoRA, QLoRA adapters
+trl>=1.9.0              # SFTTrainer / SFTConfig
+
+# --- quantization ----------------------------------------------------------
+bitsandbytes>=0.50.0    # 4-bit NF4; CPU backend requires AVX2 (Codespaces has it)
+
+# --- evaluation ------------------------------------------------------------
+lm-eval>=0.4.12         # EleutherAI lm-evaluation-harness
+evaluate>=0.4.6
+scikit-learn>=1.5.0
+
+# --- optional: frontier-model comparison in Lab 5 Step 6 -------------------
+# Only used if GROQ_API_KEY is set. The step skips cleanly without it, and no
+# other lab touches this package.
+groq>=0.11.0
+
+# --- misc ------------------------------------------------------------------
+sentencepiece>=0.2.0
+protobuf>=4.25.0
