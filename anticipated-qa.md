@@ -80,9 +80,19 @@ already been quantized.
 
 **Q: Why doesn't Lab 2 mask the prompt like Lab 3 does?**
 A: Deliberate contrast. Lab 2 is plain causal-LM fine-tuning — the standard
-baseline, where the model is graded on every token. Lab 3 shows what TRL gives you
-for free. On an 82M model the difference is real: capacity spent re-predicting the
-ticket text is capacity not spent on the answer.
+baseline, where the model is graded on every token. Lab 3 masks the prompt
+explicitly. On an 82M model the difference is real: capacity spent re-predicting
+the ticket text is capacity not spent on the answer.
+
+**Q: Why don't the labs use TRL's SFTTrainer? Isn't that the standard tool?**
+A: It is, on a GPU, and the slides cover it. But measured on a 4-core Codespace,
+`SFTTrainer` ran at **226 s/step** against **7.3 s/step** for the plain HF
+`Trainer` with the identical model, shapes and LoRA config — 24 steps would have
+taken 90 minutes instead of 3. We could not reproduce the overhead from
+`max_length` (TRL pads to longest, not to max_length), the v5 `adamw_torch_fused`
+default, or thread oversubscription. Rather than ship a lab that cannot finish, we
+use `Trainer` and mask the prompt by hand — which is a better lesson anyway,
+because students see what `SFTTrainer` would have been doing for them.
 
 **Q: What learning rate should I use?**
 A: Full fine-tuning: 1e-5 to 5e-5 for a run of any real length; Lab 2 uses 3e-4 only
@@ -116,10 +126,9 @@ something different from what the old code meant.
 
 **Q: Why 192 tokens? My documents are much longer.**
 A: Attention cost grows quadratically with sequence length, so this is the single
-biggest lever on CPU training time. Our tickets are 50-70 tokens, so 192 is
-generous. For longer documents, raise `max_length`, expect training time to grow
-faster than linearly, and consider `packing=True` in SFTConfig to reduce padding
-waste.
+biggest lever on CPU training time. Measured on the real data: min 42, median 53,
+p95 60, max 64 tokens. For longer documents expect training time to grow faster
+than linearly, and consider sequence packing to reduce padding waste.
 
 ---
 
@@ -367,15 +376,21 @@ accepting a license before download.
 
 ### Lab timing (4-core Codespace)
 
+Measured on a real 4-core Codespace (AMD EPYC 9V74, 2 physical cores + SMT):
+
 | Lab | Total | of which is compute | Notes |
 |-----|-------|---------------------|-------|
-| 1 | 10-12 min | ~60-90 s | Most of it is the baseline generation |
-| 2 | 10-12 min | 2-4 min training | Tell them to start it and keep reading |
-| 3 | 10-12 min | 2-3 min training | +2 min if they do the optional DoRA step |
-| 4 | 10-12 min | 4-5 min | 4-bit is slower per step; Step 8 loads a 2nd model |
-| 5 | 10-12 min | 2-4 min | Two harness runs, then the script |
+| 1 | 10-12 min | **25 s measured** | Most of it is the baseline generation |
+| 2 | 10-12 min | **163 s measured** (139 s training) | Tell them to start it and keep reading |
+| 3 | 10-12 min | ~5 min (7.3 s/step x 24, plus load) | +3 min if they do the optional DoRA step |
+| 4 | 10-12 min | ~6-7 min | 4-bit is ~1.4x slower per step; Step 8 loads a 2nd model |
+| 5 | 10-12 min | ~4 min | Two harness runs, then the script |
 
-On a 2-core machine roughly double every compute figure.
+Labs 3 and 4 are the tight ones. If you are running behind, the DoRA step in
+Lab 3 and Step 8 of Lab 4 are both cuttable without breaking anything downstream.
+
+**Codespace build takes ~11 minutes**, not 5-8 — have attendees create it before
+the session starts.
 
 ### Break points
 

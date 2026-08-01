@@ -19,12 +19,14 @@ import sys, os, gc, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-from peft import LoraConfig, PeftModel, prepare_model_for_kbit_training
-from trl import SFTTrainer, SFTConfig
+from transformers import (
+    AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig,
+    Trainer, TrainingArguments, DataCollatorForSeq2Seq,
+)
+from peft import LoraConfig, PeftModel, get_peft_model, prepare_model_for_kbit_training
 
 from common.triage import (
-    load_tickets, to_prompt_completion, generate_predictions,
+    load_tickets, build_prompt, generate_predictions,
     score, print_scores, save_result, model_size_mb, OUT_DIR,
 )
 
@@ -140,20 +142,35 @@ peft_config = LoraConfig(
 )
 print("\n  Identical LoRA config to Lab 3. Only the base precision changed.")
 
+model = get_peft_model(model, peft_config)
+model.print_trainable_parameters()
+
 
 # ==========================================================================
 # STEP 5 - Train with the same recipe as Lab 3
 # ==========================================================================
 print("\n" + "=" * 70)
-print(f"STEP 5: Train the QLoRA adapter, {MAX_STEPS} steps (about 3 minutes)")
+print(f"STEP 5: Train the QLoRA adapter, {MAX_STEPS} steps (about 4 minutes)")
 print("=" * 70)
 
-ds = load_tickets().map(to_prompt_completion)
-train_ds = ds["train"].remove_columns(
-    [c for c in ds["train"].column_names if c not in ("prompt", "completion")]
-)
+ds = load_tickets()
 
-args = SFTConfig(
+
+def encode(example):
+    """Identical prompt masking to Lab 3."""
+    prompt = build_prompt(example["ticket"])
+    full = prompt + example["label"] + tokenizer.eos_token
+    prompt_ids = tokenizer(prompt, add_special_tokens=False)["input_ids"]
+    full_ids = tokenizer(full, add_special_tokens=False)["input_ids"]
+    labels = [-100] * len(prompt_ids) + full_ids[len(prompt_ids):]
+    return {"input_ids": full_ids,
+            "attention_mask": [1] * len(full_ids),
+            "labels": labels}
+
+
+tokenized = load_tickets().map(encode, remove_columns=ds["train"].column_names)
+
+args = TrainingArguments(
     output_dir=ADAPTER_DIR,
     max_steps=MAX_STEPS,
     per_device_train_batch_size=8,
@@ -165,27 +182,25 @@ args = SFTConfig(
     eval_strategy="no",
     report_to="none",
     use_cpu=True,
-    max_length=192,
-    packing=False,
     optim="adamw_torch",
     seed=42,
 )
 
-trainer = SFTTrainer(
+trainer = Trainer(
     model=model,
     args=args,
-    train_dataset=train_ds,
+    train_dataset=tokenized["train"],
+    data_collator=DataCollatorForSeq2Seq(tokenizer, padding=True,
+                                         label_pad_token_id=-100),
     processing_class=tokenizer,
-    peft_config=peft_config,
 )
-trainer.model.print_trainable_parameters()
 
 t0 = time.time()
 result = trainer.train()
 elapsed = time.time() - t0
 print(f"\n  Trained in {elapsed:.0f}s   final loss {result.training_loss:.4f}")
 
-trainer.save_model(ADAPTER_DIR)
+model.save_pretrained(ADAPTER_DIR)
 tokenizer.save_pretrained(ADAPTER_DIR)
 adapter_mb = sum(
     os.path.getsize(os.path.join(ADAPTER_DIR, f))

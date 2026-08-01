@@ -1,6 +1,6 @@
 # Fine-Tuning Small AI Models: LoRA, QLoRA & Evaluation
 
-## Revision 1.0 - 07/31/26
+## Revision 1.1 - 08/01/26
 
 **Workshop labs — 5 labs, 10-12 minutes each**
 
@@ -104,7 +104,7 @@ code -d extra/lab1_prep_complete.txt finetune/lab1_prep.py
 python finetune/lab1_prep.py
 ```
 
-This takes about 60-90 seconds, most of which is the baseline generation in
+This takes about 25-40 seconds, most of which is the baseline generation in
 Step 7. You may see warnings about `loss_type` or about pad tokens — these are
 harmless.
 
@@ -283,11 +283,11 @@ work — the next two labs are the better trade.
 
 ---
 
-## **Lab 3 - LoRA Fine-Tuning with TRL**
+## **Lab 3 - LoRA Fine-Tuning with PEFT**
 
 **Purpose: Fine-tune a model four times larger than Lab 2's while training
-about 2.3% of its parameters, using PEFT's `LoraConfig` and TRL's
-`SFTTrainer`. Produce an adapter measured in megabytes instead of hundreds of
+about 2.3% of its parameters, using PEFT's `LoraConfig`. Mask the prompt out of
+the loss. Produce an adapter measured in megabytes instead of hundreds of
 megabytes.**
 
 **Estimated time: 10-12 minutes**
@@ -326,7 +326,8 @@ code -d extra/lab3_lora_complete.txt finetune/lab3_lora.py
 
 <br><br>
 
-3. Run it. **Training takes about 2-3 minutes**:
+3. Run it. **Budget about 5 minutes total** — roughly 1 minute to load the
+fp32 model, 3 minutes of training, and a minute of evaluation:
 
 ```
 python finetune/lab3_lora.py
@@ -366,12 +367,29 @@ base model *before* LoRA is applied.)
 
 <br><br>
 
-6. Look at **STEP 5**. Because the columns are literally named `prompt` and
-`completion`, TRL sets `completion_only_loss=True` on its own: the prompt
-tokens get `-100` labels and contribute nothing to the loss. In Lab 2 we did
-not do that — distilgpt2 spent part of its capacity learning to re-predict
-ticket text we already had. This is a meaningful quality difference on small
-models, and TRL gives it to you for free if you name the columns correctly.
+6. Look at **STEP 5**, the masking. This is the one real difference from
+Lab 2. For every example we tokenize the prompt and the full string separately,
+then overwrite the prompt positions in `labels` with `-100`:
+
+```
+labels = [-100] * len(prompt_ids) + full_ids[len(prompt_ids):]
+```
+
+The script prints how many tokens were masked versus graded — something like
+`49 tokens, 32 masked as prompt, 17 graded`. In Lab 2 we did not do this, so
+distilgpt2 spent part of its capacity learning to re-predict ticket text we
+already had. On a small model that difference is real.
+
+`DataCollatorForSeq2Seq` is what makes it work at batch level: it pads
+`input_ids` with the pad token and `labels` with `-100`, which is exactly what
+completion-only training needs.
+
+> **A note on TRL.** TRL's `SFTTrainer` does this masking for you automatically
+> when your dataset columns are named `prompt` and `completion`, and on a GPU it
+> is what you would reach for. We use the plain Hugging Face `Trainer` here for
+> two reasons: you get to see exactly what the masking means, and on a CPU-only
+> Codespace `SFTTrainer` measured roughly **31x slower** than `Trainer` for the
+> identical model, shapes and LoRA config — minutes versus over an hour.
 
 <br><br>
 
@@ -457,7 +475,7 @@ code -d extra/lab4_qlora_complete.txt finetune/lab4_qlora.py
 
 <br><br>
 
-3. Run it. **This one takes about 4-5 minutes total** — 4-bit is slower per
+3. Run it. **This one takes about 6-7 minutes total** — 4-bit is slower per
 step on CPU, and Step 8 loads a second model:
 
 ```

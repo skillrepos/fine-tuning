@@ -1,5 +1,5 @@
 """
-Lab 3 - LoRA fine-tuning with TRL.
+Lab 3 - LoRA fine-tuning with PEFT.
 
 Same task, a model 4x larger, and this time we train about two percent of
 the weights instead of all of them.
@@ -12,18 +12,24 @@ layers we care about. During training only those matrices move:
 
 Because r is tiny (8, 16, 32) compared to the layer width, B @ A has a few
 million parameters instead of a few hundred million.
+
+This lab also does something Lab 2 did not: it masks the prompt out of the
+loss, so every gradient goes into producing the triage line rather than into
+re-predicting the ticket text we already had.
 """
 
 import sys, os, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import (
+    AutoModelForCausalLM, AutoTokenizer,
+    Trainer, TrainingArguments, DataCollatorForSeq2Seq,
+)
 from peft import LoraConfig, get_peft_model
-from trl import SFTTrainer, SFTConfig
 
 from common.triage import (
-    load_tickets, to_prompt_completion, generate_predictions,
+    load_tickets, build_prompt, generate_predictions,
     score, print_scores, save_result, param_report, OUT_DIR,
 )
 
@@ -119,35 +125,62 @@ print("""
 
 
 # ==========================================================================
-# STEP 5 - Data, in TRL's prompt/completion form
+# STEP 5 - Tokenize, and mask the prompt out of the loss
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 5: Prepare the dataset for TRL")
+print("STEP 5: Build the dataset with completion-only loss")
 print("=" * 70)
 
-ds = load_tickets().map(to_prompt_completion)
-train_ds = ds["train"].remove_columns(
-    [c for c in ds["train"].column_names if c not in ("prompt", "completion")]
-)
-print(train_ds)
-print(f"\n  Because the columns are named 'prompt' and 'completion', TRL sets")
-print(f"  completion_only_loss=True by itself -- the prompt tokens get labels")
-print(f"  of -100 and contribute nothing to the loss. In Lab 2 we did NOT do")
-print(f"  that: distilgpt2 was graded on re-predicting the ticket text too.")
+ds = load_tickets()
+
+
+def encode(example):
+    """Tokenize prompt + completion, then blank the prompt out of the labels."""
+    prompt = build_prompt(example["ticket"])
+    full = prompt + example["label"] + tokenizer.eos_token
+
+    prompt_ids = tokenizer(prompt, add_special_tokens=False)["input_ids"]
+    full_ids = tokenizer(full, add_special_tokens=False)["input_ids"]
+
+    # -100 means "do not grade this position". Everything before the answer
+    # is context, not something we want the model to learn to reproduce.
+    labels = [-100] * len(prompt_ids) + full_ids[len(prompt_ids):]
+
+    return {"input_ids": full_ids,
+            "attention_mask": [1] * len(full_ids),
+            "labels": labels}
+
+
+tokenized = ds.map(encode, remove_columns=ds["train"].column_names)
+
+row = tokenized["train"][0]
+n_masked = sum(1 for l in row["labels"] if l == -100)
+print(f"\n  first example: {len(row['input_ids'])} tokens, "
+      f"{n_masked} masked as prompt, {len(row['labels']) - n_masked} graded")
+print(f"  labels[:12] = {row['labels'][:12]}")
+print("""
+  Compare with Lab 2, where labels == input_ids and distilgpt2 was graded on
+  re-predicting the ticket text as well as the answer. On a small model that
+  is real capacity spent on something you already have.
+
+  TRL's SFTTrainer will do this masking for you automatically when your columns
+  are named 'prompt' and 'completion'. We do it by hand here for two reasons:
+  you can see exactly what it means, and on a CPU-only box the plain Trainer is
+  dramatically faster.
+""")
 
 
 # ==========================================================================
 # STEP 6 - Train
 # ==========================================================================
 print("\n" + "=" * 70)
-print(f"STEP 6: Train the adapter, {MAX_STEPS} steps (about 2 minutes)")
+print(f"STEP 6: Train the adapter, {MAX_STEPS} steps (about 3 minutes)")
 print("=" * 70)
 
-args = SFTConfig(
+args = TrainingArguments(
     output_dir=OUTPUT_DIR,
     max_steps=MAX_STEPS,        # a step budget, not epochs -- keeps the lab timed
     per_device_train_batch_size=8,
-    gradient_accumulation_steps=1,
     learning_rate=1e-3,         # LoRA tolerates a far higher LR than full FT
     warmup_steps=0.1,
     lr_scheduler_type="cosine",
@@ -156,15 +189,19 @@ args = SFTConfig(
     eval_strategy="no",
     report_to="none",
     use_cpu=True,
-    max_length=192,             # v1.x name -- 'max_seq_length' was removed
-    packing=False,
+    optim="adamw_torch",
     seed=42,
 )
 
-trainer = SFTTrainer(
+# Pads input_ids with the pad token AND labels with -100, which is exactly
+# what completion-only training needs.
+collator = DataCollatorForSeq2Seq(tokenizer, padding=True, label_pad_token_id=-100)
+
+trainer = Trainer(
     model=peft_model,
     args=args,
-    train_dataset=train_ds,
+    train_dataset=tokenized["train"],
+    data_collator=collator,
     processing_class=tokenizer,
 )
 
@@ -209,7 +246,7 @@ print("\n" + "=" * 70)
 print("STEP 8: Evaluate the LoRA model")
 print("=" * 70)
 
-eval_rows = list(load_tickets()["eval"])[:N_EVAL]
+eval_rows = list(ds["eval"])[:N_EVAL]
 preds = generate_predictions(peft_model, tokenizer, eval_rows, max_new_tokens=24, show=3)
 
 s = score(preds, eval_rows)
@@ -225,7 +262,7 @@ print("""
   Compare with Lab 2. A 4x larger model, ~2.3% of the parameters trained, an
   artifact measured in megabytes instead of hundreds of megabytes.
 
-  OPTIONAL (about 2 more minutes): set use_dora=True in Step 3 and rerun.
+  OPTIONAL (about 3 more minutes): set use_dora=True in Step 3 and rerun.
   DoRA splits each weight update into a magnitude and a direction and only
   applies the low-rank update to the direction. It usually buys a little
   quality at low rank, and costs a little speed. At r=16 the difference is

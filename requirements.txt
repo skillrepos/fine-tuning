@@ -13,7 +13,11 @@ datasets>=5.0.0
 
 # --- parameter-efficient fine-tuning ---------------------------------------
 peft>=0.20.0            # LoRA, DoRA, QLoRA adapters
-trl>=1.9.0              # SFTTrainer / SFTConfig
+
+# TRL is discussed in the slides and is the tool you would reach for on a GPU,
+# but no lab imports it: on CPU its SFTTrainer measured ~31x slower than the
+# plain HF Trainer for the identical model, shapes and LoRA config.
+trl>=1.9.0
 
 # --- quantization ----------------------------------------------------------
 bitsandbytes>=0.50.0    # 4-bit NF4; CPU backend requires AVX2 (Codespaces has it)

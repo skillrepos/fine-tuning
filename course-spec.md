@@ -63,7 +63,7 @@ Total: welcome 10 + lecture 96 + labs 60 + break 10 + wrap-up 4 = 180 min.
 | 6 | Baseline evaluation before training | mastery | must-cover | abstract | Lab 1, Lab 5 |
 | 7 | HF `Trainer` / `TrainingArguments` | hands-on | must-cover | abstract | Lab 2 |
 | 8 | Full fine-tuning mechanics and cost | hands-on | must-cover | abstract | Lab 2 (distilgpt2 is 82M — the 6-layer distillation of GPT-2's 124M) |
-| 9 | TRL `SFTTrainer` / `SFTConfig` | hands-on | must-cover | abstract | Lab 3 |
+| 9 | TRL `SFTTrainer` / `SFTConfig` | awareness | must-cover | abstract | Slides + Lab 3 callout only — see Assumptions Log |
 | 10 | LoRA theory: low-rank decomposition, r, alpha, dropout | mastery | must-cover | abstract | Lab 3 |
 | 11 | LoRA target modules (arch-specific) | hands-on | must-cover | abstract | Lab 3 |
 | 12 | DoRA, rsLoRA (awareness + one live toggle) | awareness | must-cover | abstract | Lab 3 optional step |
@@ -90,7 +90,7 @@ automatic); `load_in_4bit=True` as a `from_pretrained` kwarg (removed in transfo
 |-----|--------|----------|-------|------------------------------|----------------|------------------|-----------|
 | 1 | new | Dataset curation, HF datasets, chat template, baseline eval, task metrics | diff-merge + run-and-observe | `finetune/lab1_prep.py` → `extra/lab1_prep_complete.txt` | no | yes (short CPU generation) | 12 min |
 | 2 | new | Full fine-tuning with HF Trainer on distilgpt2 | diff-merge + run-and-observe | `finetune/lab2_fullft.py` → `extra/lab2_fullft_complete.txt` | no | yes | 12 min |
-| 3 | new | LoRA with TRL SFTTrainer on SmolLM2-360M; rank/alpha/targets; DoRA toggle | diff-merge + run-and-observe | `finetune/lab3_lora.py` → `extra/lab3_lora_complete.txt` | no | yes | 12 min |
+| 3 | new | LoRA with PEFT + HF Trainer on SmolLM2-360M; explicit prompt masking; rank/alpha/targets; DoRA toggle | diff-merge + run-and-observe | `finetune/lab3_lora.py` → `extra/lab3_lora_complete.txt` | no | yes | 12 min |
 | 4 | new | QLoRA (NF4 4-bit + LoRA), memory comparison, merge & export | diff-merge + run-and-observe | `finetune/lab4_qlora.py` → `extra/lab4_qlora_complete.txt` | no | yes | 12 min |
 | 5 | new | lm-evaluation-harness, custom task metrics, before/after table, optional frontier baseline | diff-merge + run-and-observe | `finetune/lab5_eval.py` → `extra/lab5_eval_complete.txt` | no | yes | 12 min |
 
@@ -175,6 +175,11 @@ devcontainer template, slide master rules, copyright). Deviations for this cours
   Measured on a 4-core CPU: a full LoRA pass over TinyLlama-1.1B needs ~11 min and Phi-3-mini
   is a 7.6 GB download, both outside a 12-minute lab. SmolLM2-360M keeps the "progressively
   larger" progression (82M → 362M → 1.1B) while every lab still finishes in budget. Unconfirmed.
+- Labs use the plain HF `Trainer` rather than TRL's `SFTTrainer`. Measured on a real
+  4-core Codespace: `SFTTrainer` 226 s/step vs `Trainer` 7.3 s/step for the identical
+  model, shapes and LoRA config (24 steps = 90 min vs 3 min). Prompt masking is therefore
+  done explicitly in Labs 3-4. TRL remains in requirements.txt and on the slides as the
+  GPU-path tool. Confirmed by QA run 2026-08-01.
 - Abstract states distilgpt2 is 124M; the model is actually 81.9M parameters (124M is GPT-2
   small, which DistilGPT2 was distilled from). Materials use 82M throughout. Unconfirmed.
 - Dataset shipped in-repo rather than pulled from the Hub: assumed for live-session reliability.

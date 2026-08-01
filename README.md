@@ -1,6 +1,6 @@
 # Fine-Tuning Small AI Models: LoRA, QLoRA & Evaluation
 
-**A 3-hour hands-on workshop — Revision 1.0, 07/31/26**
+**A 3-hour hands-on workshop — Revision 1.1, 08/01/26**
 Tech Skills Transformations LLC · Brent C. Laster
 
 Pre-trained models are powerful generalists, but most enterprise use cases demand
@@ -45,7 +45,7 @@ Two secrets are *optionally* supported and never required — see
 
 1. Click **Code → Codespaces → Create codespace on main** in this repository.
 2. Choose a **4-core / 16 GB** machine type.
-3. Wait for the container to build. This takes **5-8 minutes** the first time —
+3. Wait for the container to build. This takes **8-12 minutes** the first time —
    it installs the Python stack and pre-downloads all three models so no lab
    step waits on a download during the workshop.
 4. You are ready when the terminal shows `>>> Model prefetch complete.`

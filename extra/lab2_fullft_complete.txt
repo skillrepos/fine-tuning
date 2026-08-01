@@ -80,8 +80,8 @@ print(tokenizer.decode(tokenized["train"][0]["input_ids"]))
 
 print("""
   Note what we did NOT do: mask the prompt. In plain causal-LM fine-tuning the
-  model is graded on predicting every token, ticket text included. TRL will do
-  the masking for us in Lab 3 -- watch for the difference.
+  model is graded on predicting every token, ticket text included. Lab 3 masks
+  the prompt out of the loss -- watch for the difference.
 """)
 
 
@@ -93,12 +93,15 @@ print("STEP 3: Build the data collator")
 print("=" * 70)
 
 collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
-batch = collator([tokenized["train"][i] for i in range(2)])
+batch = collator([tokenized["train"][i] for i in range(4)])
+# Pick the SHORTEST row in the batch -- that is the one that actually got
+# padded, so it is the one where you can see -100 appear.
+r = min(range(4), key=lambda i: len(tokenized["train"][i]["input_ids"]))
 print(f"\n  batch input_ids : {tuple(batch['input_ids'].shape)}")
 print(f"  batch labels    : {tuple(batch['labels'].shape)}")
 print(f"  padded positions in labels are set to -100 (ignored by the loss):")
-print(f"  input_ids tail : {batch['input_ids'][0][-8:].tolist()}")
-print(f"  labels tail    : {batch['labels'][0][-8:].tolist()}")
+print(f"  input_ids tail : {batch['input_ids'][r][-8:].tolist()}")
+print(f"  labels tail    : {batch['labels'][r][-8:].tolist()}")
 print(f"\n  The EOS token (id {tokenizer.eos_token_id}) survives in the labels -- that is")
 print(f"  what teaches the model to stop. Had we aliased PAD to EOS, every one")
 print(f"  of those would read -100 instead.")

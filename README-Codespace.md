@@ -21,7 +21,7 @@ workshop costs about 12 of your 120 free core-hours. You will not be charged.
 
 4. Click **Create codespace**.
 
-5. Wait for the build. The first build takes **5-8 minutes** because it:
+5. Wait for the build. The first build takes **8-12 minutes** because it:
    - installs CPU-only PyTorch and the training stack (~2-3 min)
    - pre-downloads distilgpt2, SmolLM2-360M-Instruct, and TinyLlama-1.1B
      (~4 GB total, ~3-5 min)
