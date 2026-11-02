@@ -1,0 +1,4 @@
+# Shell scripts must keep Unix (LF) line endings, even when the repo is cloned
+# on Windows. Git for Windows converts to CRLF by default, and a CRLF bash
+# script fails in Git Bash and in containers with "$'\r': command not found".
+*.sh text eol=lf

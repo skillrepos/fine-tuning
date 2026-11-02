@@ -244,11 +244,37 @@ def model_size_mb(model):
 # Optional: a frontier-model baseline via Groq
 # --------------------------------------------------------------------------
 
-def groq_predictions(rows, model="llama-3.3-70b-versatile", show=0):
+# Groq retires hosted models on a regular cadence. The model this workshop
+# originally used, `llama-3.3-70b-versatile`, was DECOMMISSIONED on 2026-08-16.
+# If this step suddenly 404s, that is almost certainly why: check
+# https://console.groq.com/docs/deprecations and change the two constants below.
+# Nothing else in the workshop depends on them.
+#
+# That churn is not a footnote -- it is one of the arguments for fine-tuning a
+# model you own, and Lab 5 Step 6 makes the point explicitly.
+FRONTIER_MODEL = "openai/gpt-oss-120b"   # 120B MoE (~5B active per token).
+                                         # Groq's own recommended replacement.
+
+# gpt-oss models ALWAYS reason -- reasoning cannot be switched off, only turned
+# down. Two consequences for a 1-line classification task:
+#   reasoning_effort="low"     keeps the thinking short
+#   reasoning_format="hidden"  keeps it out of the reply, so `content` is just
+#                              the triage line
+# And reasoning tokens are drawn from the OUTPUT budget, so the 48 tokens this
+# task needs is no longer a safe cap: too small a budget gets spent thinking and
+# returns an EMPTY content string with finish_reason="length".
+FRONTIER_KWARGS = {
+    "reasoning_effort": "low",
+    "reasoning_format": "hidden",
+    "max_completion_tokens": 256,
+}
+
+
+def groq_predictions(rows, model=FRONTIER_MODEL, show=0, **model_kwargs):
     """Zero-shot predictions from a large hosted model, for comparison.
 
-    Returns None if the groq package is missing or GROQ_API_KEY is not set --
-    this is an optional step and every lab must run without it.
+    Returns None if the groq package is missing, GROQ_API_KEY is not set, or the
+    API call fails -- this is an optional step and every lab must run without it.
     """
     if not os.environ.get("GROQ_API_KEY"):
         return None
@@ -258,36 +284,59 @@ def groq_predictions(rows, model="llama-3.3-70b-versatile", show=0):
         print("  (groq package not installed -- pip install groq)")
         return None
 
-    client = Groq()
-    preds = []
+    # The SDK already retries 429s on its own (twice by default), honouring the
+    # Retry-After header. We raise that a little because a whole classroom hits
+    # the free tier's 30 requests/minute at the same moment.
+    client = Groq(max_retries=5)
+    kwargs = {**FRONTIER_KWARGS, **model_kwargs}
+
+    preds, empties = [], 0
     start = time.time()
     for i, row in enumerate(rows):
-        text = ""
-        for attempt in range(4):
-            try:
-                resp = client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": ZERO_SHOT_SYSTEM},
-                        {"role": "user", "content": row["ticket"]},
-                    ],
-                    temperature=0,        # greedy, like our local models
-                    max_tokens=48,
-                )
-                text = resp.choices[0].message.content or ""
-                break
-            except Exception as e:
-                # 30 requests/minute on the free tier -- back off and retry.
-                if "429" in str(e) and attempt < 3:
-                    time.sleep(3 * (attempt + 1))
-                    continue
+        messages = [
+            {"role": "system", "content": ZERO_SHOT_SYSTEM},
+            {"role": "user", "content": row["ticket"]},
+        ]
+        try:
+            resp = client.chat.completions.create(
+                model=model, messages=messages,
+                temperature=0,          # greedy, like our local models
+                **kwargs,
+            )
+        except Exception as e:
+            # A non-reasoning model will reject the reasoning_* arguments. Drop
+            # them and try once more, so swapping FRONTIER_MODEL stays a
+            # one-line change.
+            if type(e).__name__ == "BadRequestError" and any(
+                    k.startswith("reasoning") for k in kwargs):
+                kwargs = {k: v for k, v in kwargs.items()
+                          if not k.startswith("reasoning")}
+                print("  (model rejected the reasoning_* args -- retrying without them)")
+                try:
+                    resp = client.chat.completions.create(
+                        model=model, messages=messages, temperature=0, **kwargs)
+                except Exception as e2:
+                    print(f"  Groq call failed on row {i}: {e2}")
+                    return None
+            else:
                 print(f"  Groq call failed on row {i}: {e}")
+                print(f"  If this is a 404, '{model}' may have been retired --")
+                print("  see https://console.groq.com/docs/deprecations")
                 return None
+
+        text = resp.choices[0].message.content or ""
+        if not text.strip():
+            empties += 1
         pred = text.strip().split("\n")[0].strip().strip("`").strip()
         preds.append(pred)
         if i < show:
             print(f"\n  TICKET   : {row['ticket'][:90]}...")
             print(f"  EXPECTED : {row['label']}")
             print(f"  PREDICTED: {pred!r}")
+
     print(f"\n  ({len(rows)} predictions from {model} in {time.time() - start:.1f}s)")
+    if empties:
+        print(f"  WARNING: {empties} of {len(rows)} replies came back EMPTY.")
+        print("  That is the reasoning-token trap: raise max_completion_tokens")
+        print("  in FRONTIER_KWARGS (common/triage.py) and rerun.")
     return preds

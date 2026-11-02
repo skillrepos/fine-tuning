@@ -7,15 +7,18 @@ frozen base model still sitting in memory at 2 or 4 bytes per weight.
 QLoRA fixes that: quantize the frozen base to 4-bit NF4, keep the LoRA
 adapters at higher precision, and backpropagate through the quantized weights.
 
-This lab runs the EXACT recipe from Lab 3 -- same model, same data, same
-rank, same steps -- with one thing changed: the base is 4-bit. That makes the
-quality difference attributable to quantization and nothing else.
+READ THIS BEFORE YOU RUN IT. This lab is about MECHANICS and MEMORY, not
+about quality. We train for only 4 steps here, and we will measure exactly
+why: on a CPU, bitsandbytes 4-bit matmuls are roughly 20-25x slower per step
+than float32, so a Lab 3-sized run would take over an hour. QLoRA is a GPU
+technique that buys memory. Pretending otherwise would waste your afternoon.
 
-Then we merge the adapter back into a full-precision base and export a
-standalone model.
+What you WILL come away with: the 4-bit memory numbers, proof that gradients
+really do flow through quantized weights, the merge-and-export rule that most
+people get wrong, and a live demonstration of the size tier 4-bit unlocks.
 """
 
-import sys, os, gc, time
+import sys, os, gc, json, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import torch
@@ -33,8 +36,9 @@ from common.triage import (
 BASE_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"   # same model as Lab 3
 BIG_MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"     # Step 8: memory only
 ADAPTER_DIR = os.path.join(OUT_DIR, "smollm2-qlora")
-MERGED_DIR = os.path.join(OUT_DIR, "smollm2-merged")
-MAX_STEPS = 24            # identical to Lab 3
+MERGED_DIR = os.path.join(OUT_DIR, "smollm2-qlora-merged")
+QLORA_STEPS = 4           # NOT convergence -- see Step 5
+QLORA_BATCH = 2           # 4-bit CPU matmuls scale badly with batch size
 N_EVAL = 20
 
 
@@ -115,10 +119,12 @@ print("""
   are information-theoretically optimal for normally-distributed values --
   which is what trained weights look like.
 
-  Honest caveat for CPU: 4-bit buys you MEMORY, not speed. Every matmul has to
-  dequantize first, so expect roughly 1.4x slower steps than bf16. On a GPU
-  under VRAM pressure the memory saving is what lets you train at all -- and
-  that is the whole point of QLoRA.
+  And here is the honest caveat, which Step 5 will make you measure yourself:
+  4-bit buys MEMORY, and on a CPU it costs a great deal of SPEED. Every matmul
+  has to dequantize a block before it can multiply, and bitsandbytes has no
+  optimized CPU kernel for that path -- it is written for CUDA. On a GPU under
+  VRAM pressure the memory saving is what lets the run happen at all, which is
+  the entire point of QLoRA. On a 2-core Codespace it is a demonstration.
 """)
 
 
@@ -147,11 +153,22 @@ model.print_trainable_parameters()
 
 
 # ==========================================================================
-# STEP 5 - Train with the same recipe as Lab 3
+# STEP 5 - Train 4 steps, and time them honestly
 # ==========================================================================
 print("\n" + "=" * 70)
-print(f"STEP 5: Train the QLoRA adapter, {MAX_STEPS} steps (about 4 minutes)")
+print(f"STEP 5: Train {QLORA_STEPS} steps through the quantized base "
+      f"(about 3 minutes)")
 print("=" * 70)
+print("""
+  Four steps is not training. It is a PROBE, and it answers two questions
+  that matter more than a loss curve right now:
+
+    1. Do gradients actually flow through 4-bit frozen weights to reach the
+       adapters? (If the answer were no, QLoRA would not exist.)
+    2. What does a 4-bit step cost on this hardware, versus Lab 3's float32?
+
+  We will read the answer to #2 off the clock, not off a blog post.
+""")
 
 ds = load_tickets()
 
@@ -168,16 +185,16 @@ def encode(example):
             "labels": labels}
 
 
-tokenized = load_tickets().map(encode, remove_columns=ds["train"].column_names)
+tokenized = ds.map(encode, remove_columns=ds["train"].column_names)
 
 args = TrainingArguments(
     output_dir=ADAPTER_DIR,
-    max_steps=MAX_STEPS,
-    per_device_train_batch_size=8,
+    max_steps=QLORA_STEPS,
+    per_device_train_batch_size=QLORA_BATCH,
     learning_rate=1e-3,
-    warmup_steps=0.1,
-    lr_scheduler_type="cosine",
-    logging_steps=4,
+    warmup_steps=0,
+    lr_scheduler_type="constant",
+    logging_steps=1,
     save_strategy="no",
     eval_strategy="no",
     report_to="none",
@@ -198,7 +215,28 @@ trainer = Trainer(
 t0 = time.time()
 result = trainer.train()
 elapsed = time.time() - t0
-print(f"\n  Trained in {elapsed:.0f}s   final loss {result.training_loss:.4f}")
+qlora_s_per_step = elapsed / QLORA_STEPS
+print(f"\n  Trained {QLORA_STEPS} steps in {elapsed:.0f}s   "
+      f"final loss {result.training_loss:.4f}")
+print(f"  4-bit NF4, batch {QLORA_BATCH}: {qlora_s_per_step:.1f} s/step")
+
+# Read Lab 3's float32 number back out of results.json so the comparison is
+# between two runs YOU made on THIS machine, not two numbers from a slide.
+results_path = os.path.join(OUT_DIR, "results.json")
+lab3 = {}
+if os.path.exists(results_path):
+    with open(results_path) as f:
+        lab3 = json.load(f).get("lora_smollm2", {})
+
+if lab3.get("train_seconds") and lab3.get("steps"):
+    lora_s_per_step = lab3["train_seconds"] / lab3["steps"]
+    print(f"  Lab 3 float32, batch 8   : {lora_s_per_step:.1f} s/step")
+    print(f"\n  Per step, 4-bit is {qlora_s_per_step / lora_s_per_step:.0f}x slower here "
+          f"-- and it did 1/4 the examples per step.")
+    print(f"  Per EXAMPLE, that is about "
+          f"{(qlora_s_per_step / QLORA_BATCH) / (lora_s_per_step / 8):.0f}x.")
+else:
+    print("  (Run Lab 3 first to get the float32 comparison number.)")
 
 model.save_pretrained(ADAPTER_DIR)
 tokenizer.save_pretrained(ADAPTER_DIR)
@@ -207,7 +245,21 @@ adapter_mb = sum(
     for f in os.listdir(ADAPTER_DIR)
     if os.path.isfile(os.path.join(ADAPTER_DIR, f))
 ) / 1024 ** 2
-print(f"  Adapter saved to {ADAPTER_DIR}  ({adapter_mb:.1f} MB)")
+print(f"\n  Adapter saved to {ADAPTER_DIR}  ({adapter_mb:.1f} MB)")
+
+print("""
+  The loss moved, so gradients reached the adapters through the packed 4-bit
+  weights. Question 1 answered: QLoRA works.
+
+  Question 2 answered too, and it is the number to take to your team. On CUDA,
+  bitsandbytes dequantizes inside a fused kernel and the overhead is small --
+  the QLoRA paper reports roughly a third slower than 16-bit LoRA, in exchange
+  for fitting a 65B model on one 48 GB card. On CPU there is no such kernel,
+  so you pay the dequantization in full.
+
+  The rule that falls out of it: choose QLoRA when memory is the binding
+  constraint. If the model already fits, plain LoRA is faster everywhere.
+""")
 
 del model, trainer
 gc.collect()
@@ -249,41 +301,57 @@ print("""
   Merged means: no PEFT dependency at runtime, no adapter-loading step, one
   ordinary Hugging Face model directory. The trade is that you lose the
   swap-adapters-per-tenant trick from Lab 3. Decide per deployment.
+
+  This is the export procedure, and it is identical whether the adapter took
+  4 steps or 4,000. What is inside our adapter after 4 steps is another
+  matter -- Step 7.
 """)
 
 
 # ==========================================================================
-# STEP 7 - Evaluate, and compare directly against Lab 3
+# STEP 7 - What 4 steps actually bought (spoiler: not much)
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 7: Evaluate the merged QLoRA model")
+print("STEP 7: Evaluate the merged model -- and read it honestly")
 print("=" * 70)
 
 eval_rows = list(load_tickets()["eval"])[:N_EVAL]
 preds = generate_predictions(merged, tokenizer, eval_rows, max_new_tokens=24, show=3)
 
 s = score(preds, eval_rows)
-print_scores("QLoRA - SmolLM2-360M (4-bit base)", s)
+print_scores(f"QLoRA probe - SmolLM2-360M, 4-bit base, {QLORA_STEPS} steps", s)
 save_result("qlora_smollm2", s, {
-    "model": BASE_MODEL, "trained": True, "method": "qlora",
-    "rank": peft_config.r, "steps": MAX_STEPS,
+    "model": BASE_MODEL, "trained": True, "method": "qlora (4-step probe)",
+    "rank": peft_config.r, "steps": QLORA_STEPS, "batch_size": QLORA_BATCH,
     "train_seconds": round(elapsed),
+    "sec_per_step": round(qlora_s_per_step, 1),
     # Store the ADAPTER size so Lab 5's table compares like with like against
     # Lab 3. The merged directory is recorded separately.
     "artifact_mb": round(adapter_mb, 1), "merged_mb": round(merged_mb),
     "bf16_mb": round(bf16_mb), "nf4_mb": round(nf4_mb),
     "final_loss": round(result.training_loss, 4),
+    "note": "mechanics probe, not a quality run",
 })
 
 del merged, base
 gc.collect()
 
 print("""
-  Now put this next to Lab 3. Same model, same data, same rank, same steps --
-  the only difference is that the frozen base was 4-bit. Whatever accuracy gap
-  you see IS the cost of quantization. In the QLoRA paper that gap is close to
-  zero on real benchmarks; at this scale and step count expect a little noise
-  in both directions.
+  Those scores are poor, and they are supposed to be. Eight examples of
+  supervision is not fine-tuning. Do not read this row as "QLoRA is worse
+  than LoRA" -- read it as "step count dominates every knob we have talked
+  about all afternoon."
+
+  The controlled quality comparison -- same model, same data, same rank, 24
+  steps, float32 base vs 4-bit base -- is a real and worthwhile experiment.
+  It is also a 70-minute CPU run, which is why it is a homework exercise and
+  not a lab. Set QLORA_STEPS = 24 and QLORA_BATCH = 8, run it overnight, and
+  compare against Lab 3's row in out/results.json.
+
+  The published answer, if you want the expectation first: the QLoRA paper
+  found 4-bit NF4 with double quantization matches 16-bit LoRA quality on
+  their benchmarks. Quantization costs memory-for-speed, not memory-for-
+  accuracy.
 """)
 
 
@@ -304,12 +372,22 @@ print(f"\n  TinyLlama parameters : {big_params:,}")
 print(f"  float32 would be     : {big_params * 4 / 1024 ** 2:8,.0f} MB")
 print(f"  4-bit NF4 actual     : {big_nf4_mb:8,.0f} MB")
 print(f"""
-  That is the headline. A 1.1B model now occupies less memory than the 360M
-  model did in Lab 3 at float32. Quantization is what moves the size of model
+  That is the headline, and it is the one thing from this lab that transfers
+  unchanged to your real hardware. A 1.1B model now occupies less memory than
+  the 360M model did in Lab 3 at float32. Quantization moves the size of model
   you can fine-tune on given hardware up by roughly one tier.
 
-  OPTIONAL, AT HOME: point BASE_MODEL at "microsoft/Phi-3-mini-4k-instruct"
-  (3.8B) and rerun. Every other line stays the same. It is a 7.6 GB download
-  and each step takes minutes on CPU, which is exactly why it is not a live
-  lab -- but it is the same code, and that is the point.
+  On a GPU you would now start training. Here we stop, because the arithmetic
+  from Step 5 says a 1.1B 4-bit CPU step would take minutes, not seconds.
+
+  OPTIONAL, AT HOME ON A GPU: point BASE_MODEL at TinyLlama and every other
+  line in this file stays exactly the same -- TinyLlama is Llama-style, so the
+  target_modules list already matches. That is the real claim of QLoRA: not
+  that it is fast, but that the code barely changes as the model grows.
+
+  If you go to "microsoft/Phi-3-mini-4k-instruct" (3.8B) instead, ONE more
+  edit is needed: Phi-3 fuses its projections, so target_modules becomes
+  ["qkv_proj", "o_proj", "gate_up_proj", "down_proj"]. Leave the Llama names
+  in place and PEFT 0.21 will raise NoMatchingPeftModuleError -- which is the
+  lesson from Lab 3 Step 2 arriving to collect.
 """)

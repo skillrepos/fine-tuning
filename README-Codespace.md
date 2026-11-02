@@ -3,117 +3,92 @@
 This is the recommended way to take the workshop. Everything runs in the cloud;
 nothing is installed on your machine.
 
+**The step-by-step setup, with screenshots, is in [README.md](README.md#setup--github-codespace-recommended).**
+This page adds detail and fixes for common problems.
+
 ## Cost
 
-GitHub's free tier includes **120 core-hours per month** for personal accounts.
-A 4-core Codespace consumes 4 core-hours per hour of use, so this 3-hour
-workshop costs about 12 of your 120 free core-hours. You will not be charged.
+GitHub gives personal accounts a monthly allowance of free Codespaces usage
+(at the time of writing, **120 core-hours per month**; check
+<https://github.com/settings/billing> for your own). A 4-core Codespace uses
+4 core-hours per hour, so this 3-hour workshop uses about 12. Within your free
+allowance you are not charged, and GitHub does not ask for a payment method to
+use it.
 
-## Step by step
+Stopped Codespaces still use a little *storage* allowance. Delete the Codespace
+at <https://github.com/codespaces> when you no longer need it.
 
-1. Go to the workshop repository on GitHub.
+## What happens while the Codespace builds
 
-2. Click the green **Code** button, then the **Codespaces** tab, then
-   **"..." → New with options...**
+The first build takes about **5-8 minutes** because it:
 
-3. Set **Machine type** to **4-core / 16 GB RAM / 32 GB storage**.
-   This matters. The labs are timed for 4 cores, and Lab 4 needs the memory.
+- installs CPU-only PyTorch and the training stack (~2-3 min)
+- downloads distilgpt2, SmolLM2-360M-Instruct, and TinyLlama-1.1B
+  (~4 GB total, ~3-5 min)
 
-4. Click **Create codespace**.
-
-5. Wait for the build. The first build takes **8-12 minutes** because it:
-   - installs CPU-only PyTorch and the training stack (~2-3 min)
-   - pre-downloads distilgpt2, SmolLM2-360M-Instruct, and TinyLlama-1.1B
-     (~4 GB total, ~3-5 min)
-
-   You can watch progress by clicking **"Building codespace"** in the lower
-   right, or **View → Output → Dev Containers**.
-
-6. You are ready when the terminal shows:
-
-   ```
-   >>> Model prefetch complete.
-   ```
-
-7. Open `labs.md` from the file explorer and press `Ctrl+Shift+V`
-   (`Cmd+Shift+V` on Mac) to render it as a preview. That is the document you
-   follow for the whole workshop.
-
-8. Open a terminal with `` Ctrl+Shift+` ``. Your prompt should begin with
-   `(.venv)`. If it does not:
-
-   ```
-   source .venv/bin/activate
-   ```
-
-## Optional: Codespaces secrets
-
-Nothing in this workshop *requires* a token. Two are useful if you have them.
-
-Set them at **GitHub → Settings → Codespaces → Secrets → New secret**, and grant
-this repository access in the secret's repository list. Codespaces injects them
-as ordinary environment variables — there is nothing to configure in the repo,
-and you should never put a token in `devcontainer.json`, which is committed.
-
-| Secret name | What it does | Needed? |
-|---|---|---|
-| `HF_TOKEN` | Raises Hugging Face Hub rate limits, and unlocks gated models (Llama, Gemma) if you experiment beyond the labs. Picked up automatically by `huggingface_hub` — no code change. | No. Useful when a whole class pulls from the Hub at once. |
-| `GROQ_API_KEY` | Enables the optional Lab 5 Step 6 comparison against `llama-3.3-70b-versatile`. Free tier is 30 requests/minute, which is plenty. Get one at [console.groq.com](https://console.groq.com). | No. That step skips cleanly without it. |
-
-**An already-running Codespace will not see a new secret.** Stop it and start it
-again (not just reload the browser window) after adding one.
-
-To confirm they arrived:
+You can watch progress by clicking **"Building codespace"** in the lower right,
+or **View → Output → Dev Containers**. It is ready when the terminal shows:
 
 ```
-echo "HF_TOKEN      is ${HF_TOKEN:+set}${HF_TOKEN:-NOT set}"
-echo "GROQ_API_KEY  is ${GROQ_API_KEY:+set}${GROQ_API_KEY:-NOT set}"
+>>> Model prefetch complete.
 ```
 
-## Verifying your environment before the workshop starts
-
-Run this. It should print version numbers and no errors:
+Your terminal prompt should begin with `(.venv)`. If it does not:
 
 ```
-python -c "
-import torch, transformers, peft, trl, datasets, bitsandbytes, lm_eval
-print('torch       ', torch.__version__)
-print('transformers', transformers.__version__)
-print('peft        ', peft.__version__)
-print('trl         ', trl.__version__)
-print('bitsandbytes', bitsandbytes.__version__)
-print('lm_eval     ', lm_eval.__version__)
-print('cores       ', torch.get_num_threads())
-"
+source .venv/bin/activate
 ```
 
-And confirm the models are cached (this should complete in seconds, not
-minutes — if it starts downloading, the prefetch did not finish):
+## Checking your environment
 
 ```
-python -c "
-from transformers import AutoTokenizer
-for m in ['distilgpt2','HuggingFaceTB/SmolLM2-360M-Instruct','TinyLlama/TinyLlama-1.1B-Chat-v1.0']:
-    AutoTokenizer.from_pretrained(m); print('cached:', m)
-"
+python scripts/verify_setup.py
 ```
+
+It checks the installed libraries, that all three models are downloaded, that
+4-bit training (Lab 4) works, and whether the optional Groq key is set. The last
+line should be `RESULT: ready for the workshop.`
+
+## Optional: Groq key for Lab 5 Step 6
+
+No step in this workshop *requires* a key. The one optional step that uses Groq
+is set up by a script — **you do not need to create any GitHub or Codespaces
+secrets.** Follow [README.md, "Optional: a free Groq API key"](README.md#optional-a-free-groq-api-key-for-lab-5-step-6),
+which comes down to:
+
+```
+source scripts/setup-key.sh       # paste your key when asked
+python scripts/check_groq.py      # should print a line starting with OK
+```
+
+The key is saved in your Codespace's `~/.bashrc`, so new terminals get it too,
+and it survives the Codespace stopping and restarting. It never leaves your
+Codespace and is not committed to the repository. If `check_groq.py` ever says
+`MISSING` (for example, after you rebuild the Codespace), run `setup-key.sh`
+again.
 
 ## Keeping your work
 
-Codespaces stop automatically after 30 minutes of inactivity and are deleted
-after 30 days. Your files persist across stops. To keep anything permanently,
-commit and push it, or download it via **right-click → Download** in the file
-explorer.
+Codespaces stop after a period of inactivity (30 minutes unless you changed it —
+see step 1 in README.md) and are deleted after 30 days of not being used. Your
+files persist across stops. To keep anything permanently, commit and push it, or
+download it via **right-click → Download** in the file explorer.
 
-The `out/` directory is gitignored — model artifacts are large and easily
+The `out/` directory is not tracked in git — model artifacts are large and easily
 regenerated by re-running the labs.
 
 ## Common Codespace issues
 
 **The build failed or timed out.**
 Delete the Codespace and create a new one. Transient network failures during
-the model prefetch are the usual cause. If the container built but models are
-missing, just run `bash scripts/prefetch_models.sh` yourself.
+the model download are the usual cause. If the container built but models are
+missing, run `python scripts/prefetch_models.py` yourself.
+
+**The model download fails with `429 Too Many Requests`.**
+Hugging Face briefly limits downloads when many people pull the same models at
+once — for example, a whole class starting Codespaces together. Wait a few
+minutes and run `python scripts/prefetch_models.py`. It skips anything already
+downloaded. No Hugging Face account or token is needed.
 
 **"You have exceeded your Codespaces quota."**
 Check your usage at
@@ -121,10 +96,23 @@ Check your usage at
 Codespaces you are not using at
 [github.com/codespaces](https://github.com/codespaces).
 
-**`nproc` says 2, not 4.**
-You were given a 2-core machine. Every training time in `labs.md` roughly
-doubles. You can delete the Codespace and recreate it with the 4-core option,
-or continue and expect longer waits.
+**`nproc` says 2 — is my machine too small?**
+Almost certainly not. GNU `nproc` honours `OMP_NUM_THREADS`, and this repo pins
+that to 2 on purpose (see below). Check the real machine size with:
+
+```
+nproc --all          # should print 4
+```
+
+If `nproc --all` also says 2, then you really are on a 2-core machine — every
+training time in `labs.md` roughly doubles. Delete the Codespace and recreate it
+with the 4-core option, or continue and expect longer waits.
+
+**Why is `OMP_NUM_THREADS` set to 2 on a 4-core machine?**
+A "4-core" Codespace is 2 physical cores with SMT, not 4 real cores. Measured on
+an EPYC 9V74: 4 threads runs about **17% slower** than 2 for this workload,
+because the two hyperthreads contend for one core's execution units. PyTorch
+already defaults to 2; the pin just makes every library agree.
 
 **Out of disk space.**
 ```
@@ -137,6 +125,10 @@ The three models plus the Python environment use roughly 10 GB.
 That command only works inside the Codespace's own terminal, not in a local
 terminal connected over SSH. Make sure you are using the terminal panel in the
 browser or in the VS Code window attached to the Codespace.
+
+**Can't use Codespaces at all?**
+See [Local_Setup_Mac.md](Local_Setup_Mac.md) or
+[Local_Setup_Windows.md](Local_Setup_Windows.md).
 
 ---
 

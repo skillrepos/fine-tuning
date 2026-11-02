@@ -1,0 +1,194 @@
+{
+  "files": {
+    "extra/lab1_prep_complete.txt": [
+      {
+        "anchor": "formatted = ds.map(to_prompt_completion)",
+        "lines": 1,
+        "title": "Reshape into prompt / completion",
+        "note": [
+          "**Turns every raw ticket into a prompt plus the answer we want back.**",
+          "- `map()` runs the helper on every row of both splits",
+          "- Lab 3 uses this split to grade only the answer"
+        ]
+      },
+      {
+        "anchor": "rendered = chat_tok.apply_chat_template(messages, tokenize=False,",
+        "endAnchor": "add_generation_prompt=True)",
+        "title": "Render the chat template",
+        "note": [
+          "**Wraps the same ticket in the model's own chat markers.**",
+          "- Every model family has its own markers, stored in its tokenizer",
+          "- `add_generation_prompt=True` tells the model it's its turn to answer"
+        ]
+      },
+      {
+        "anchor": "preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24, show=3)",
+        "title": "Baseline predictions",
+        "note": [
+          "**Asks the untrained model to triage 20 held-out tickets.**",
+          "- `show=3` prints three examples so you can see what it produced"
+        ]
+      },
+      {
+        "anchor": "s = score(preds, eval_rows)",
+        "lines": 1,
+        "title": "Score the baseline",
+        "note": [
+          "**Grades the predictions on four separate checks: format, category, priority, queue.**",
+          "- This is the number every later lab must beat"
+        ]
+      }
+    ],
+    "extra/lab2_fullft_complete.txt": [
+      {
+        "anchor": "text = build_prompt(example[\"ticket\"]) + example[\"label\"] + tokenizer.eos_token",
+        "lines": 1,
+        "title": "One training string per ticket",
+        "note": [
+          "**Joins prompt, correct answer, and an end token into one string to train on.**",
+          "- The end token is how the model learns where to stop"
+        ]
+      },
+      {
+        "anchor": "collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)",
+        "lines": 1,
+        "title": "Data collator",
+        "note": [
+          "**Pads each batch to equal length and builds the labels the model is graded on.**",
+          "- Padding positions get -100, meaning 'don't grade this'",
+          "- `mlm=False`: predict the next word, not fill in blanks"
+        ]
+      },
+      {
+        "anchor": "num_train_epochs=2,",
+        "endAnchor": "seed=42,",
+        "title": "Training settings",
+        "note": [
+          "**How long, how fast, and on what hardware to train.**",
+          "- 2 passes over the data, 8 examples per step",
+          "- `warmup_steps=0.05` means 5% of training, not 0.05 steps",
+          "- `use_cpu=True` replaces the removed `no_cuda`"
+        ]
+      },
+      {
+        "anchor": "train_dataset=tokenized[\"train\"],",
+        "endAnchor": "processing_class=tokenizer,   # v5 name -- 'tokenizer=' was removed",
+        "title": "Hand the data to the Trainer",
+        "note": [
+          "**Gives the Trainer the tokenized tickets, the collator, and the tokenizer.**",
+          "- `processing_class=` is the new name for `tokenizer=`"
+        ]
+      }
+    ],
+    "extra/lab3_lora_complete.txt": [
+      {
+        "anchor": "r=16,                    # rank: the width of the bottleneck",
+        "endAnchor": "use_dora=False,          # flip to True in the optional step below",
+        "title": "LoRA settings",
+        "note": [
+          "**Decides how big the add-on adapters are and where they attach.**",
+          "- `r`: adapter size (capacity). `lora_alpha`: its strength, kept at 2 x r",
+          "- `target_modules`: the seven layer types that get an adapter",
+          "- `use_dora`: the optional DoRA switch in Step 10"
+        ]
+      },
+      {
+        "anchor": "peft_model = get_peft_model(model, peft_config)",
+        "title": "Attach the adapters",
+        "note": [
+          "**Freezes the base model and adds small trainable adapters beside its layers.**",
+          "- The printed line shows only about 2.3% of parameters will train"
+        ]
+      },
+      {
+        "anchor": "labels = [-100] * len(prompt_ids) + full_ids[len(prompt_ids):]",
+        "title": "Grade only the answer",
+        "note": [
+          "**Marks every prompt position -100 so only the triage line is graded.**",
+          "- Lab 2 skipped this, so the model also practised retyping tickets"
+        ]
+      },
+      {
+        "anchor": "train_dataset=tokenized[\"train\"],",
+        "endAnchor": "processing_class=tokenizer,",
+        "title": "Hand the data to the Trainer",
+        "note": [
+          "**Same Trainer as Lab 2, but it now trains the adapter model.**",
+          "- The collator pads labels with -100 so the masking survives batching"
+        ]
+      }
+    ],
+    "extra/lab4_qlora_complete.txt": [
+      {
+        "anchor": "bnb_config = BitsAndBytesConfig(",
+        "title": "4-bit quantization settings",
+        "note": [
+          "**Store the frozen model in 4 bits instead of 32 to save memory.**",
+          "- `nf4`: 4-bit format tuned to how trained weights are spread",
+          "- Math still runs at 16-bit; double quant shrinks the overhead too"
+        ]
+      },
+      {
+        "anchor": "quantization_config=bnb_config,         # v5: load_in_4bit=True as a kwarg is gone",
+        "lines": 1,
+        "title": "Load the model in 4-bit",
+        "note": [
+          "**Passes those settings in while loading, so weights are stored in 4 bits.**",
+          "- The old `load_in_4bit=True` shortcut no longer exists"
+        ]
+      },
+      {
+        "anchor": "model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)",
+        "title": "Prepare a 4-bit model for training",
+        "note": [
+          "**Small housekeeping that lets training run safely on top of 4-bit weights.**"
+        ]
+      },
+      {
+        "anchor": "lora_dropout=0.05,",
+        "endAnchor": "\"gate_proj\", \"up_proj\", \"down_proj\"],",
+        "title": "Same LoRA settings as Lab 3",
+        "note": [
+          "**Identical adapter settings to Lab 3 — only the base model's storage changed.**",
+          "- That's what makes Lab 3 vs. Lab 4 a fair comparison"
+        ]
+      },
+      {
+        "anchor": "merged = PeftModel.from_pretrained(base, ADAPTER_DIR)",
+        "title": "Merge the adapter",
+        "note": [
+          "**Loads the trained adapter and folds it permanently into the base model.**",
+          "- Merged into a 16-bit base, never the 4-bit one",
+          "- The result is an ordinary model with no adapter files"
+        ]
+      }
+    ],
+    "extra/lab5_eval_complete.txt": [
+      {
+        "anchor": "model = PeftModel.from_pretrained(base, LORA_DIR)",
+        "lines": 1,
+        "title": "Attach the Lab 3 adapter",
+        "note": [
+          "**Loads the base model and puts your Lab 3 adapter back on top.**",
+          "- This is how an adapter is used outside the training script"
+        ]
+      },
+      {
+        "anchor": "if got == row[\"category\"]:",
+        "title": "Tally right and wrong per category",
+        "note": [
+          "**Counts correct answers per category and records each mix-up.**",
+          "- The mix-ups print as 'true -> predicted' pairs in STEP 3"
+        ]
+      },
+      {
+        "anchor": "groq_preds = groq_predictions(eval_rows, model=FRONTIER, show=2)",
+        "title": "Optional frontier comparison",
+        "note": [
+          "**Sends the same 20 tickets to a large hosted model on Groq.**",
+          "- Returns nothing and skips cleanly if no Groq key is set"
+        ]
+      }
+    ]
+  }
+}

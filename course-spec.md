@@ -42,7 +42,7 @@ models small enough to train in minutes on a free 4-vCPU GitHub Codespace.
 | 1:01 | **Lab 2** — Full fine-tune distilgpt2 (82M) | 12 |
 | 1:13 | **BREAK** | 10 |
 | 1:23 | **Section 3** — LoRA: the low-rank idea, rank, alpha, target modules, DoRA | 20 |
-| 1:43 | **Lab 3** — LoRA fine-tune SmolLM2-360M with TRL | 12 |
+| 1:43 | **Lab 3** — LoRA fine-tune SmolLM2-360M with PEFT + HF `Trainer` | 12 |
 | 1:55 | **Section 4** — Quantization & QLoRA: NF4, double quant, paged optimizers, merge & export | 20 |
 | 2:15 | **Lab 4** — QLoRA on SmolLM2-360M + merge/export; TinyLlama 1.1B memory check | 12 |
 | 2:27 | **Section 5** — Systematic evaluation: task metrics, harnesses, regression & forgetting | 17 |
@@ -91,7 +91,7 @@ automatic); `load_in_4bit=True` as a `from_pretrained` kwarg (removed in transfo
 | 1 | new | Dataset curation, HF datasets, chat template, baseline eval, task metrics | diff-merge + run-and-observe | `finetune/lab1_prep.py` → `extra/lab1_prep_complete.txt` | no | yes (short CPU generation) | 12 min |
 | 2 | new | Full fine-tuning with HF Trainer on distilgpt2 | diff-merge + run-and-observe | `finetune/lab2_fullft.py` → `extra/lab2_fullft_complete.txt` | no | yes | 12 min |
 | 3 | new | LoRA with PEFT + HF Trainer on SmolLM2-360M; explicit prompt masking; rank/alpha/targets; DoRA toggle | diff-merge + run-and-observe | `finetune/lab3_lora.py` → `extra/lab3_lora_complete.txt` | no | yes | 12 min |
-| 4 | new | QLoRA (NF4 4-bit + LoRA), memory comparison, merge & export | diff-merge + run-and-observe | `finetune/lab4_qlora.py` → `extra/lab4_qlora_complete.txt` | no | yes | 12 min |
+| 4 | new | QLoRA (NF4 4-bit + LoRA), memory comparison, 4-step training probe + CPU cost measurement, merge & export | diff-merge + run-and-observe | `finetune/lab4_qlora.py` → `extra/lab4_qlora_complete.txt` | no | yes | 12 min |
 | 5 | new | lm-evaluation-harness, custom task metrics, before/after table, optional frontier baseline | diff-merge + run-and-observe | `finetune/lab5_eval.py` → `extra/lab5_eval_complete.txt` | no | yes | 12 min |
 
 - Capstone: Lab 5 combines every prior artifact (baseline, full-FT model, LoRA adapter, QLoRA
@@ -149,12 +149,13 @@ speaker notes on every slide, built on the `tst-template.pptx` master.
   `TinyLlama/TinyLlama-1.1B-Chat-v1.0` (1.1B; Lab 4 Step 8, memory measurement only).
   `microsoft/Phi-3-mini-4k-instruct` (3.8B) appears as a clearly-marked **optional take-home**
   step in Lab 4 — a 7.6 GB download and multi-minute CPU steps put it outside a 12-minute
-  live lab. This substitution for the abstract's stated ladder is recorded in the Assumptions
-  Log below.
+  live lab, and it needs a `target_modules` change because it fuses its projections
+  (`qkv_proj`, `gate_up_proj`). This substitution for the abstract's stated ladder is recorded
+  in the Assumptions Log below.
 - Services/ports: none
 - Tokens (both optional, neither required): `HF_TOKEN` raises Hub rate limits and unlocks gated
   models; `GROQ_API_KEY` enables Lab 5's optional Step 6 frontier comparison against
-  `llama-3.3-70b-versatile`. Both are set as Codespaces secrets and injected as env vars. Every
+  `openai/gpt-oss-120b`. Both are set as Codespaces secrets and injected as env vars. Every
   lab runs to completion with neither set.
 
 ## Conventions
@@ -180,6 +181,22 @@ devcontainer template, slide master rules, copyright). Deviations for this cours
   model, shapes and LoRA config (24 steps = 90 min vs 3 min). Prompt masking is therefore
   done explicitly in Labs 3-4. TRL remains in requirements.txt and on the slides as the
   GPU-path tool. Confirmed by QA run 2026-08-01.
+- Lab 4 trains for **4 steps at batch 2**, not Lab 3's 24 steps at batch 8, and is framed as a
+  mechanics-and-memory lab rather than a quality comparison. Measured on a real 4-core
+  Codespace: bitsandbytes 4-bit NF4 runs 176.8 s/step at batch 8 and 43.0 s/step at batch 2,
+  against 7-10 s/step for float32 — roughly 20x per training example, because the
+  dequantize-and-multiply path is a CUDA kernel with no CPU equivalent. A like-for-like 24-step
+  4-bit run measures ~71 minutes. The controlled quality experiment is therefore set as
+  homework, and the QLoRA paper's near-zero-gap result is cited rather than demonstrated.
+  Confirmed by QA run 2026-08-01.
+- Lab 5's optional frontier comparison moved from `llama-3.3-70b-versatile` to
+  `openai/gpt-oss-120b`. Groq **decommissioned** the Llama model on 2026-08-16; `gpt-oss-120b`
+  is Groq's own recommended replacement and is Production (not Preview) tier. Because gpt-oss
+  models always reason and reasoning tokens come out of the output budget, the call now sends
+  `reasoning_effort="low"`, `reasoning_format="hidden"` and `max_completion_tokens=256` instead
+  of `max_tokens=48`. The model ID lives in one constant (`FRONTIER_MODEL` in
+  `common/triage.py`) precisely because this will happen again. Confirmed 2026-10-05 against
+  console.groq.com/docs/deprecations.
 - Abstract states distilgpt2 is 124M; the model is actually 81.9M parameters (124M is GPT-2
   small, which DistilGPT2 was distilled from). Materials use 82M throughout. Unconfirmed.
 - Dataset shipped in-repo rather than pulled from the Hub: assumed for live-session reliability.

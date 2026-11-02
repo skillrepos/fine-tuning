@@ -9,8 +9,8 @@ Run the two lm_eval commands from labs.md BEFORE running this script -- this
 script reads their output.
 
 Step 6 is optional and needs a free GROQ_API_KEY. It compares everything you
-built against a 70B model given the best prompt we can write. It skips cleanly
-if the key is absent.
+built against a 120B hosted model given the best prompt we can write. It skips
+cleanly if the key is absent.
 """
 
 import sys, os, json, glob
@@ -23,7 +23,7 @@ from peft import PeftModel
 
 from common.triage import (
     load_tickets, generate_predictions, groq_predictions,
-    score, print_scores, save_result, SCHEMA_RE, OUT_DIR,
+    score, print_scores, save_result, SCHEMA_RE, OUT_DIR, FRONTIER_MODEL,
 )
 
 LORA_DIR = os.path.join(OUT_DIR, "smollm2-lora")
@@ -43,13 +43,14 @@ with open(os.path.join(OUT_DIR, "results.json")) as f:
 
 ORDER = ["baseline_distilgpt2", "fullft_distilgpt2", "lora_smollm2", "qlora_smollm2"]
 LABEL = {
-    "baseline_distilgpt2": "Lab 1  baseline   distilgpt2  82M",
-    "fullft_distilgpt2":   "Lab 2  full FT    distilgpt2  82M",
-    "lora_smollm2":        "Lab 3  LoRA fp32  SmolLM2  360M",
-    "qlora_smollm2":       "Lab 4  QLoRA nf4  SmolLM2  360M",
+    "baseline_distilgpt2": "Lab 1  baseline    distilgpt2  82M",
+    "fullft_distilgpt2":   "Lab 2  full FT     distilgpt2  82M",
+    "lora_smollm2":        "Lab 3  LoRA fp32   SmolLM2  360M",
+    "qlora_smollm2":       "Lab 4  QLoRA probe SmolLM2  360M",
 }
 
-hdr = f"{'run':38s} {'schema':>8s} {'category':>9s} {'priority':>9s} {'queue':>7s} {'MB':>7s} {'sec':>6s}"
+hdr = (f"{'run':38s} {'schema':>8s} {'category':>9s} {'priority':>9s} "
+       f"{'queue':>7s} {'MB':>7s} {'steps':>6s} {'sec':>6s}")
 print("\n" + hdr)
 print("-" * len(hdr))
 for key in ORDER:
@@ -59,7 +60,8 @@ for key in ORDER:
     r = results[key]
     print(f"{LABEL[key]:38s} {r['schema_valid']:7.1%} {r['category_acc']:8.1%} "
           f"{r['priority_acc']:8.1%} {r['queue_acc']:6.1%} "
-          f"{r.get('artifact_mb', '-'):>7} {r.get('train_seconds', '-'):>6}")
+          f"{r.get('artifact_mb', '-'):>7} {r.get('steps', '-'):>6} "
+          f"{r.get('train_seconds', '-'):>6}")
 
 print("""
   Read the columns, not just the last row.
@@ -67,14 +69,22 @@ print("""
   schema   -- can the model produce the SHAPE we require at all?
   category -- does it understand the ticket?
   MB       -- what do we have to store and ship per fine-tuned variant?
+  steps    -- how much supervision did it actually see?
   sec      -- what did it cost to produce?
 
   A single "accuracy" number would have hidden every one of those trade-offs.
 
-  Rows 3 and 4 are the controlled experiment: same model, same data, same
-  rank, same 24 steps. The only variable is whether the frozen base was
-  float32 or 4-bit NF4. Whatever gap you see there is the price of
-  quantization -- and it should be small.
+  Now read rows 3 and 4 with the steps column in view. Lab 4 is a 4-step
+  MECHANICS probe, not a quality run -- on CPU a like-for-like 24-step 4-bit
+  run measures over an hour. So this table does NOT tell you what quantization
+  costs in accuracy. It tells you something else worth just as much: the gap
+  between rows 3 and 4 is almost entirely a STEP COUNT gap, which is the
+  single most common reason a real fine-tune underperforms.
+
+  The quantization-quality question is answered in the literature (QLoRA
+  matches 16-bit LoRA on their benchmarks) and is set as homework at the end
+  of Lab 4. What Lab 4 proved live is that 4-bit training runs at all, what it
+  costs in memory, and how to export the result.
 """)
 
 
@@ -200,15 +210,31 @@ if base_res and lora_res:
             continue
         print(f"  {t:16s} {b:10.3f} {l:10.3f} {l - b:+10.3f}")
     print("""
-  This is catastrophic forgetting, measured. The adapter made the model good
-  at ticket triage; these numbers tell you what that cost on everything else.
+  This is the catastrophic-forgetting check, measured. The adapter made the
+  model good at ticket triage; these numbers ask what that cost on everything
+  else.
 
-  Small negative deltas are normal and usually acceptable. Large ones mean
-  your learning rate or epoch count is too aggressive, or your dataset is too
-  narrow -- mix in some general instruction data and retrain.
+  How to read the deltas:
 
-  Note: --limit 20 gives a noisy estimate. It is enough to catch a collapse,
-  not enough to publish. Drop --limit for a real number.
+    near zero      -- what you should EXPECT here, and what we typically see.
+                      24 steps of LoRA on 7 attention/MLP projections is a
+                      very light touch. Nothing got overwritten.
+    small positive -- noise, not improvement. At --limit 20 one extra correct
+                      answer moves the number by 0.05. Do not go tell anyone
+                      that fine-tuning on support tickets improved ARC.
+    small negative -- also noise at this sample size, and normal even when
+                      real.
+    large negative -- the finding you ran this to catch. Learning rate or
+                      epoch count too aggressive, or a dataset so narrow the
+                      model collapsed onto one output shape. Mix in general
+                      instruction data and retrain.
+
+  The point of the check is not the number, it is having the number. Most
+  teams ship a fine-tune having never measured this at all.
+
+  Note: --limit 20 gives a deliberately noisy estimate so it finishes in a
+  minute. It is enough to catch a collapse, not enough to publish. Drop
+  --limit for a real number.
 """)
 else:
     print("""
@@ -224,7 +250,10 @@ print("\n" + "=" * 78)
 print("STEP 6: The prompt-engineering ceiling (optional -- needs GROQ_API_KEY)")
 print("=" * 78)
 
-FRONTIER = "llama-3.3-70b-versatile"     # ~200x the parameters of our SmolLM2
+# Imported from common/triage.py so there is ONE place to change when Groq
+# retires a model -- which it does roughly twice a year. The model this workshop
+# shipped with first, llama-3.3-70b-versatile, was decommissioned 2026-08-16.
+FRONTIER = FRONTIER_MODEL               # ~330x the total parameters of our SmolLM2
 
 groq_preds = groq_predictions(eval_rows, model=FRONTIER, show=2)
 
@@ -239,7 +268,7 @@ if groq_preds is None:
 else:
     gs = score(groq_preds, eval_rows)
     print_scores(f"ZERO-SHOT PROMPT - {FRONTIER}", gs)
-    save_result("zeroshot_groq_70b", gs, {
+    save_result("zeroshot_groq_frontier", gs, {
         "model": FRONTIER, "trained": False, "method": "zero-shot prompt",
     })
 
@@ -256,8 +285,9 @@ else:
 
   That model was given the BEST possible prompt -- every category, every
   priority, the full routing table, and the exact output contract. This is
-  prompt engineering at its ceiling, on a model roughly 200x larger than the
-  one you fine-tuned.
+  prompt engineering at its ceiling, on a model with roughly 330x the total
+  parameters of the one you fine-tuned (120B, mixture-of-experts, about 5B of
+  them active per token).
 
   Whichever way the accuracy falls, these do not change:
 
@@ -267,7 +297,10 @@ else:
     Privacy   -- every ticket leaves your network. For a lot of enterprises that
                  ends the conversation on its own.
     Control   -- the model can be deprecated or silently updated underneath you.
-                 Your adapter is a 33 MB file you own.
+                 Your adapter is a 37 MB file you own. This is not theoretical:
+                 the model THIS STEP used to call, llama-3.3-70b-versatile, was
+                 switched off by Groq on 2026-08-16, and the step broke until
+                 someone edited one constant. Your Lab 3 adapter still runs.
     Drift     -- a prompt is a suggestion. Weights are a commitment.
 
   If the frontier model wins on accuracy here, the honest read is: this task is

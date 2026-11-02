@@ -74,13 +74,20 @@ names = sorted({
 print(f"\n  Linear module names in this architecture: {names}")
 print("""
   This matters and it is architecture-specific:
-    Llama-style (SmolLM2, TinyLlama, Phi-3, Qwen, Mistral)
+    Llama-style (SmolLM2, TinyLlama, Qwen, Mistral, Llama 3)
         -> q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj
     GPT-2 style (distilgpt2)
         -> c_attn, c_proj   (and they are Conv1D, not Linear!)
+    Fused-projection models (Phi-3, Phi-4-mini)
+        -> qkv_proj, o_proj, gate_up_proj, down_proj
+           Q, K and V share ONE tensor, so the Llama names match nothing here.
 
   Copying a target_modules list from a blog post written for a different model
-  family is the single most common LoRA mistake. You can also pass
+  family is the single most common LoRA mistake. Since PEFT 0.21 a list that
+  matches NOTHING raises NoMatchingPeftModuleError -- a loud failure, which is
+  an improvement on the old silent no-op. A list that matches only SOME of its
+  names still succeeds quietly, adapting fewer layers than you intended, so
+  always sanity-check the trainable count. You can also pass
   target_modules="all-linear" and let PEFT work it out.
 """)
 

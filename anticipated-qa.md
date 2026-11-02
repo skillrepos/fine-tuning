@@ -197,10 +197,11 @@ cleaner if the two tasks are unrelated.
 
 **Q: Does 4-bit hurt quality?**
 A: The QLoRA paper's central claim is that NF4 plus LoRA matches 16-bit LoRA
-fine-tuning on standard benchmarks. Lab 4 is built as a controlled test of exactly
-that — same model, data, rank, and step count, only the base precision changes. At
-our scale and 24 steps expect small differences in both directions; that is noise,
-not signal.
+fine-tuning on standard benchmarks, and that is the answer to give. We do *not*
+demonstrate it live — see the two questions further down about why. Lab 4 keeps
+the model, data, rank and LoRA config identical to Lab 3 so that the only
+variable *would* be base precision, but the step count had to be cut to 4 to fit
+the lab, so its scores are not a quality result.
 
 **Q: Why isn't the memory reduction 8x?**
 A: Embeddings and the LM head stay unquantized, and every 64-weight block carries
@@ -209,11 +210,36 @@ total — SmolLM2's tied embedding table alone is 47M of 362M parameters — so 
 measure roughly 2.5-3x against bfloat16 and 5-6x against float32. The bigger the model, the closer you get to the
 theoretical ratio — which is why QLoRA's headline numbers come from 7B-70B models.
 
-**Q: Why is QLoRA slower than LoRA in the lab? Isn't 4-bit supposed to be faster?**
-A: On CPU, no. Every matmul has to dequantize the weights first, so expect roughly
-1.4x the step time. QLoRA buys memory, not speed. On a GPU under VRAM pressure that
-memory saving is what lets the training run at all — which is the actual point.
-Be straight with your team about which of the two you are buying.
+**Q: Why is QLoRA so much slower than LoRA in the lab? Isn't 4-bit supposed to be faster?**
+A: On CPU it is dramatically slower, and Lab 4 makes them measure it rather than
+take my word for it. We measured **43 s/step at batch 2** and **177 s/step at
+batch 8** for 4-bit NF4, against **~8-10 s/step at batch 8** for float32 in Lab 3
+— roughly **20x per training example**. bitsandbytes' dequantize-and-multiply
+path is a CUDA kernel; the CPU path has no equivalent, so you pay the
+dequantization in full on every matmul. That is why Lab 4 trains for only 4
+steps and is framed as a mechanics probe.
+
+On a GPU the picture is completely different: the QLoRA paper reports roughly a
+third slower than 16-bit LoRA, in exchange for fitting a 65B model on one 48 GB
+card. **QLoRA buys memory, not speed** — reach for it when memory is the binding
+constraint, and use plain LoRA when the model already fits.
+
+**Q: So we never actually see what quantization costs in accuracy?**
+A: Correct, and say so plainly — do not fake it. The controlled experiment (same
+model, same data, same rank, 24 steps, fp32 base vs 4-bit base) is a ~70-minute
+CPU run. It is set as homework at the end of Lab 4: `QLORA_STEPS = 24`,
+`QLORA_BATCH = 8`, run overnight, compare against Lab 3's row in
+`out/results.json`. The published expectation is near-zero gap — the QLoRA paper
+found 4-bit NF4 with double quantization matching 16-bit LoRA on their
+benchmarks. Quantization trades memory for speed, not memory for accuracy.
+
+**Q: Then why are Lab 4's scores so bad in the Lab 5 table?**
+A: Because it trained for 4 steps — 8 examples of supervision. That row is *not*
+a QLoRA quality result and the script says so in its own output. Turn it into the
+lesson it actually is: step count dominates every hyperparameter discussed all
+afternoon, and undertraining is the most common reason a real fine-tune
+disappoints. The `steps` column in the Lab 5 table exists specifically so nobody
+misreads that row.
 
 **Q: Does bitsandbytes really work without a GPU?**
 A: Yes, as of the 0.50 line. CPU is an officially supported backend with native
@@ -248,9 +274,22 @@ adapter often. There is no universally right answer.
 
 **Q: Can I actually run Phi-3-mini in these labs?**
 A: Not in a 12-minute live lab — it is a 7.6 GB download and each CPU step takes
-minutes. Lab 4 Step 11 is set up as a take-home: change `BASE_MODEL` to
-`microsoft/Phi-3-mini-4k-instruct` and rerun. Not one other line changes, which is
-the whole point.
+minutes. Lab 4 Step 11 is set up as a take-home. Point `BASE_MODEL` at TinyLlama
+and nothing else changes at all. Phi-3 needs exactly **one** more edit, and it is
+a good one to make them find: Phi-3 fuses its projections, so `target_modules`
+becomes `["qkv_proj", "o_proj", "gate_up_proj", "down_proj"]`. Leave the Llama
+names in and PEFT raises `NoMatchingPeftModuleError` — Lab 3 Step 2's lesson
+arriving to collect.
+
+**Q: Someone pasted the Llama `target_modules` list into the distilgpt2 lab and
+got `NoMatchingPeftModuleError`. Is that a bug?**
+A: No — that is PEFT 0.21 doing you a favour. Until 0.21 a `target_modules` list
+that matched nothing silently adapted zero layers: training ran happily to
+completion, the trainable count was tiny, and nothing improved. It now raises.
+Worth calling out live, because the old silent version is what most blog posts
+and most of their existing muscle memory assume. Note the asymmetry: a list that
+matches only *some* of its names still succeeds quietly, so the trainable-count
+check in Lab 3 Step 4 is still the real safety net.
 
 **Q: What about GGUF and Ollama?**
 A: Convert the merged model with `llama.cpp`'s `convert_hf_to_gguf.py`, quantize it
@@ -285,17 +324,17 @@ A: Pick two or three that touch the capabilities you care about preserving.
 code task; if you serve multilingual traffic, add one. The point is a consistent
 tripwire, not a leaderboard entry.
 
-**Q: The 70B model in Step 6 beat our fine-tuned model. So why did we bother?**
+**Q: The hosted 120B model in Step 6 beat our fine-tuned model. So why did we bother?**
 A: Sometimes that is the correct finding, and it is worth saying so out loud —
 this task is deliberately learnable, so a large model with a good prompt does well
 on it. What does not change: you pay per token on every request forever (that
 prompt is ~250 tokens re-billed every call), you eat a network round trip per
 ticket, every ticket leaves your network, and the provider can deprecate or
-silently update the model underneath you. Your adapter is a 33 MB file you own and
+silently update the model underneath you. Your adapter is a 37 MB file you own and
 can run air-gapped. The point of Step 6 is that this comparison costs one API call
 and should happen *before* you invest in fine-tuning, not after.
 
-**Q: Our fine-tuned 360M model beat the 70B model. Is that real?**
+**Q: Our fine-tuned 360M model beat the 120B model. Is that real?**
 A: On a narrow task with a rigid output contract, yes, and it is the normal result.
 The big model is reasoning about your schema from a prompt it has never seen; the
 small one has it in the weights. This is the whole enterprise case for fine-tuning:
@@ -304,8 +343,30 @@ same 360M model will lose badly on anything requiring real reasoning.
 
 **Q: Do I need a Groq account for the workshop?**
 A: No. Lab 5 Step 6 is the only thing that uses it, it prints a note and skips
-without a key, and nothing downstream depends on it. Free tier at
-console.groq.com is 30 requests/minute, which comfortably covers the 20 tickets.
+without a key, and nothing downstream depends on it. The free tier at
+console.groq.com allows 30 requests/minute and 8,000 tokens/minute; the step
+spends 20 requests and roughly 6,000 tokens, so it fits — but a second run inside
+the same minute will 429. Tell them to wait a minute rather than retrying.
+
+**Q: Step 6 returned a 404 / "model not found". What happened?**
+A: Groq retired the model. This is not hypothetical — `llama-3.3-70b-versatile`,
+the model this workshop originally called, was decommissioned on **2026-08-16**,
+and the step broke until one constant was changed. The fix is one line:
+`FRONTIER_MODEL` in `common/triage.py`, checked against
+[console.groq.com/docs/deprecations](https://console.groq.com/docs/deprecations).
+
+Use it. It is the single best live demonstration of the "Control" bullet in that
+same step: a hosted model can be switched off underneath you on the vendor's
+schedule, while the 37 MB adapter they trained in Lab 3 still runs exactly as it
+did the day they built it.
+
+**Q: Step 6 returned empty predictions and scored 0%.**
+A: That is the reasoning-token trap, and the script warns about it explicitly.
+`gpt-oss` models always reason and cannot be told not to — reasoning tokens come
+out of the *output* budget, so too small a `max_completion_tokens` gets spent
+thinking and returns an empty `content` with `finish_reason="length"`. Raise
+`max_completion_tokens` in `FRONTIER_KWARGS` (`common/triage.py`). We ship 256
+with `reasoning_effort="low"`, which is comfortable for a one-line answer.
 
 **Q: What about LLM-as-judge?**
 A: Useful when the output is open-ended and there is no exact-match answer — style,
@@ -383,14 +444,15 @@ Measured on a real 4-core Codespace (AMD EPYC 9V74, 2 physical cores + SMT):
 | 1 | 10-12 min | **25 s measured** | Most of it is the baseline generation |
 | 2 | 10-12 min | **163 s measured** (139 s training) | Tell them to start it and keep reading |
 | 3 | 10-12 min | ~5 min (7.3 s/step x 24, plus load) | +3 min if they do the optional DoRA step |
-| 4 | 10-12 min | ~6-7 min | 4-bit is ~1.4x slower per step; Step 8 loads a 2nd model |
+| 4 | 10-12 min | ~6-7 min | 4 training steps @ ~43 s (4-bit is ~20x slower per example); Step 8 loads a 2nd model |
 | 5 | 10-12 min | ~4 min | Two harness runs, then the script |
 
 Labs 3 and 4 are the tight ones. If you are running behind, the DoRA step in
 Lab 3 and Step 8 of Lab 4 are both cuttable without breaking anything downstream.
 
-**Codespace build takes ~11 minutes**, not 5-8 — have attendees create it before
-the session starts.
+**Codespace build takes about 4 minutes** (measured after the base-image fix;
+it was ~11 before). Still have attendees create it before the session starts —
+a class all building at once is slower than one person building alone.
 
 ### Break points
 
