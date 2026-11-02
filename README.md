@@ -65,7 +65,8 @@ Click here ➡️  [![Open in GitHub Codespaces](https://github.com/codespaces/b
 
 <br>
 
-**3. Click "Create new codespace".**
+**3. Click "Create new codespace".** (On some screens the button reads
+**Create codespace**.)
 
 ![Creating a new Codespace](./images/ft-setup-create.png?raw=true "Creating a new Codespace")
 
@@ -98,6 +99,8 @@ python scripts/verify_setup.py
 
 It takes under a minute. The last line should say
 `RESULT: ready for the workshop.` (Any `WARN` lines are optional.)
+
+![Output of verify_setup.py](./images/ft-setup-verify.png?raw=true "verify_setup.py reports the workshop is ready")
 
 <br>
 
@@ -169,6 +172,8 @@ python scripts/check_groq.py
 You want to see a line starting with `OK`. If it reports that the model is not
 available, Groq has retired it; the script lists what your key *can* reach and
 tells you the one line to change.
+
+![Output of check_groq.py](./images/ft-groq-check.png?raw=true "check_groq.py confirms the key works")
 
 <br>
 

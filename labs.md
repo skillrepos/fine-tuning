@@ -1,6 +1,6 @@
 # Fine-Tuning Small AI Models: LoRA, QLoRA & Evaluation
 
-## Revision 1.6 - 11/02/26
+## Revision 1.7 - 11/02/26
 
 **Workshop labs — 5 labs, 10-12 minutes each**
 
@@ -46,10 +46,9 @@ When you first open a lab's starter file (before the diff), the places where
 code still needs to go are highlighted in yellow — hover over one to see what
 belongs there. Each highlight disappears once you have merged that block.
 
-![Hover notes in the diff view](./images/merge-info3.png?raw=true "Hover over merge blocks to see what the code does")
+![Yellow highlight in a starter file](./images/ft-skeleton-highlight.png?raw=true "Yellow highlights mark where code still needs to go")
 
-**Screenshots.** Image placeholders in this document are being captured against
-a live Codespace run and will land in `images/` before delivery.
+![Hover notes in the diff view](./images/merge-info3.png?raw=true "Hover over merge blocks to see what the code does")
 
 **New to training terminology?** There is a one-page glossary at the end of this
 document — loss, gradients, learning rate, batch, step, epoch, and friends. Keep
@@ -279,10 +278,11 @@ real end token is kept.
 <br><br>
 
 7. Watch the training loss — how wrong the model's guesses are — fall from
-roughly 3-4 toward 1 or below. If it stays flat or jumps around, the learning
+about 5 at the start to below 1 by the end. If it stays flat or jumps around, the learning
 rate (step size) is usually the problem. Note that a falling loss only shows the
 model is learning its training examples; the test scores in STEP 7 show whether
-that works on new tickets.
+that works on new tickets. (The "Final training loss" line is the average over
+the whole run, so it is higher than the last few values.)
 
 ![Lab 2 training loss falling](./images/ft-lab2-training.png?raw=true "Training loss during full fine-tuning")
 
@@ -312,8 +312,9 @@ are the better trade.
 
 11. **Optional (about 2 minutes of training).** Change `num_train_epochs=2` to
 `1` (one pass over the training data instead of two), rerun, and compare STEP 7
-with your first run. Then put it back. You changed one thing and kept everything
-else the same — that is how to run a fair comparison.
+with your first run. You changed one thing and kept everything else the same —
+that is how to run a fair comparison. Then put it back to `2` and rerun, so
+Lab 5 compares the standard run.
 
 <p align="center">**[END OF LAB]**</p></br></br>
 
@@ -420,13 +421,17 @@ progress, not how much LoRA alone helped.)
 
 <br><br>
 
-10. **Optional (about 2 extra minutes each) — change one thing and rerun:**
+10. **Optional — change one thing and rerun:**
 
-- **Smaller adapter.** In STEP 3 of your file, change `r=16` to `r=8` and
-  `lora_alpha=32` to `16`. The trained percentage and the adapter size should
-  roughly halve; STEP 8 shows whether the scores suffer.
-- **DoRA.** Set `use_dora=True`. DoRA is a LoRA variation that often does a
-  little better with small adapters, but trains a bit slower.
+- **Smaller adapter (about 4 minutes).** In STEP 3 of your file, change `r=16`
+  to `r=8` and `lora_alpha=32` to `16`. The trained percentage should halve and
+  the adapter file shrink; STEP 8 shows whether the scores suffer.
+- **DoRA (about 10 minutes on a CPU — best done at home).** Set
+  `use_dora=True`. DoRA is a LoRA variation that often does a little better
+  with small adapters, but both training and testing are noticeably slower.
+
+Lab 5 uses the adapter this lab saves, so put the settings back and rerun
+before you move on.
 
 <br><br>
 
@@ -519,12 +524,12 @@ notice:
 adapter even though the model underneath is compressed. Then read the timing:
 
 ```
-  4-bit NF4, batch 2       : ~43 s/step
-  Lab 3 float32, batch 8   : ~8-10 s/step
+  4-bit NF4, batch 2       : ~45-50 s/step
+  Lab 3 float32, batch 8   : ~6-10 s/step
 ```
 
 Lab 3 also handled four times as many examples per step (8 instead of 2), so per
-example, 4-bit is about 20 times slower here. **Takeaway:** use QLoRA when memory
+example, 4-bit is roughly 20-30 times slower here. **Takeaway:** use QLoRA when memory
 is the problem. If the model already fits, plain LoRA trains faster.
 
 <br><br>
@@ -650,7 +655,7 @@ python finetune/lab5_eval.py
 run                                      schema  category  priority   queue      MB  steps    sec
 -------------------------------------------------------------------------------------------------
 Lab 1  baseline    distilgpt2  82M        0.0%     0.0%     0.0%   0.0%       -      -      -
-Lab 2  full FT     distilgpt2  82M        ...      ...      ...    ...      ...     70    ...
+Lab 2  full FT     distilgpt2  82M        ...      ...      ...    ...      ...     72    ...
 Lab 3  LoRA fp32   SmolLM2  360M          ...      ...      ...    ...      ...     24    ...
 Lab 4  QLoRA probe SmolLM2  360M          ...      ...      ...    ...      ...      4    ...
 ```

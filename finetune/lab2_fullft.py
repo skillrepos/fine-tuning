@@ -189,7 +189,7 @@ print_scores("FULL FINE-TUNE - distilgpt2", s)
 save_result("fullft_distilgpt2", s, {
     "model": BASE_MODEL, "trained": True, "method": "full",
     "train_seconds": round(elapsed), "artifact_mb": round(size_mb),
-    "final_loss": round(result.training_loss, 4),
+    "steps": result.global_step, "final_loss": round(result.training_loss, 4),
 })
 
 print("""

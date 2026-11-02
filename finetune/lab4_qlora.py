@@ -122,7 +122,7 @@ print("""
   has to dequantize a block before it can multiply, and bitsandbytes has no
   optimized CPU kernel for that path -- it is written for CUDA. On a GPU under
   VRAM pressure the memory saving is what lets the run happen at all, which is
-  the entire point of QLoRA. On a 2-core Codespace it is a demonstration.
+  the entire point of QLoRA. On a CPU-only Codespace it is a demonstration.
 """)
 
 
@@ -362,7 +362,10 @@ big = AutoModelForCausalLM.from_pretrained(
     BIG_MODEL, quantization_config=bnb_config,
     dtype=torch.bfloat16, device_map={"": "cpu"},
 )
-big_params = sum(p.numel() for p in big.parameters())
+# 4-bit weights are stored two-per-byte, so p.numel() would count half of
+# them. quant_state remembers the original shape -- count that instead.
+big_params = sum(p.quant_state.shape.numel() if getattr(p, "quant_state", None) is not None
+                 else p.numel() for p in big.parameters())
 big_nf4_mb = model_size_mb(big)
 print(f"\n  TinyLlama parameters : {big_params:,}")
 print(f"  float32 would be     : {big_params * 4 / 1024 ** 2:8,.0f} MB")
