@@ -1,21 +1,13 @@
 """
 Lab 3 - LoRA fine-tuning with PEFT.
 
-Same task, a model 4x larger, and this time we train about two percent of
-the weights instead of all of them.
+Same task as Lab 2, with a model four times bigger. This time we do NOT
+retrain the whole model. LoRA keeps the original model frozen (unchanged) and
+trains a small add-on next to it, called an adapter. Only the adapter learns,
+and it is about 2% of the size of the model.
 
-LoRA freezes the base model and injects a pair of small matrices next to the
-layers we care about. During training only those matrices move:
-
-        h = W0 @ x  +  (alpha / r) * B @ A @ x
-            ^frozen         ^trainable, rank r
-
-Because r is tiny (8, 16, 32) compared to the layer width, B @ A has a few
-million parameters instead of a few hundred million.
-
-This lab also does something Lab 2 did not: it masks the prompt out of the
-loss, so every gradient goes into producing the triage line rather than into
-re-predicting the ticket text we already had.
+This lab also grades the model only on its answer (the triage line), not on
+repeating the ticket text it was given. Lab 2 graded both.
 """
 
 import sys, os, time
@@ -35,7 +27,7 @@ from common.triage import (
 
 BASE_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"
 OUTPUT_DIR = os.path.join(OUT_DIR, "smollm2-lora")
-MAX_STEPS = 24           # Lab 4 reuses this exact budget for a fair comparison
+MAX_STEPS = 24           # Lab 4 trains for the same number of steps
 N_EVAL = 20
 
 
@@ -47,10 +39,9 @@ print(f"STEP 1: Load {BASE_MODEL}")
 print("=" * 70)
 
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
-# Same trap as Lab 2: PAD must not share an id with EOS, or masking the padding
-# also erases every real EOS. SmolLM2 aliases them by default -- but unlike GPT-2
-# it already ships a spare special token, so we can just point PAD at that and
-# leave the embedding table alone.
+# Same fix as Lab 2: the padding token (filler that evens out lengths) must be
+# different from the end token, or the model never learns where to stop.
+# SmolLM2 already has a spare token we can use for padding.
 if tokenizer.pad_token_id == tokenizer.eos_token_id:
     tokenizer.pad_token = "<|endoftext|>"
 print(f"\n  pad id = {tokenizer.pad_token_id}, eos id = {tokenizer.eos_token_id}")
@@ -63,7 +54,7 @@ param_report(model, "SmolLM2-360M base (before LoRA)")
 # STEP 2 - Find out what the layers are actually called
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 2: Which modules can LoRA target?")
+print("STEP 2: Which layers can LoRA attach adapters to?")
 print("=" * 70)
 
 names = sorted({
@@ -71,24 +62,12 @@ names = sorted({
     for n, m in model.named_modules()
     if isinstance(m, torch.nn.Linear)
 })
-print(f"\n  Linear module names in this architecture: {names}")
+print(f"\n  Layer names in this model: {names}")
 print("""
-  This matters and it is architecture-specific:
-    Llama-style (SmolLM2, TinyLlama, Qwen, Mistral, Llama 3)
-        -> q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj
-    GPT-2 style (distilgpt2)
-        -> c_attn, c_proj   (and they are Conv1D, not Linear!)
-    Fused-projection models (Phi-3, Phi-4-mini)
-        -> qkv_proj, o_proj, gate_up_proj, down_proj
-           Q, K and V share ONE tensor, so the Llama names match nothing here.
-
-  Copying a target_modules list from a blog post written for a different model
-  family is the single most common LoRA mistake. Since PEFT 0.21 a list that
-  matches NOTHING raises NoMatchingPeftModuleError -- a loud failure, which is
-  an improvement on the old silent no-op. A list that matches only SOME of its
-  names still succeeds quietly, adapting fewer layers than you intended, so
-  always sanity-check the trainable count. You can also pass
-  target_modules="all-linear" and let PEFT work it out.
+  These are the layers LoRA can attach adapters to. The names depend on the
+  model family, so a list copied from a different kind of model can match
+  fewer layers than you meant -- or none. Always use the names the model
+  itself reports. The percentage printed in Step 4 is your check.
 """)
 
 
@@ -100,57 +79,56 @@ print("STEP 3: Configure LoRA")
 print("=" * 70)
 
 peft_config = LoraConfig(
-    r=16,                    # rank: the width of the bottleneck
-    lora_alpha=32,           # scaling; effective strength is alpha / r
-    lora_dropout=0.05,
+    r=16,                    # adapter size: bigger can learn more
+    lora_alpha=32,           # how strongly the adapter counts (usually 2 x r)
+    lora_dropout=0.05,       # skip a few adapter values at random while training
     bias="none",
-    task_type="CAUSAL_LM",
-    target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
-                    "gate_proj", "up_proj", "down_proj"],
-    use_dora=False,          # flip to True in the optional step below
+    task_type="CAUSAL_LM",   # a model that writes text, one token at a time
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj",   # the layer names
+                    "gate_proj", "up_proj", "down_proj"],    # from Step 2
+    use_dora=False,          # the optional step at the end of the lab turns this on
 )
-print(f"\n  r={peft_config.r}  alpha={peft_config.lora_alpha}  "
-      f"scaling={peft_config.lora_alpha / peft_config.r}")
+print(f"\n  r (adapter size) = {peft_config.r}   lora_alpha (strength) = {peft_config.lora_alpha}")
 print(f"  target_modules={peft_config.target_modules}")
 
 
 # ==========================================================================
-# STEP 4 - Wrap the model and look at the parameter count
+# STEP 4 - Add the adapters and see how much of the model will train
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 4: Apply LoRA")
+print("STEP 4: Add the LoRA adapters")
 print("=" * 70)
 
 peft_model = get_peft_model(model, peft_config)
 peft_model.print_trainable_parameters()
 
 print("""
-  That percentage is the whole point of this workshop. Everything else --
-  the optimizer state, the gradients, the memory you need to hold them -- is
-  proportional to the TRAINABLE parameters, not the total.
+  That percentage is how much of the model will actually be trained. The
+  memory training needs grows with the part being trained, not with the whole
+  model -- which is why LoRA fits where retraining everything would not.
 """)
 
 
 # ==========================================================================
-# STEP 5 - Tokenize, and mask the prompt out of the loss
+# STEP 5 - Prepare the data, and grade only the answer
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 5: Build the dataset with completion-only loss")
+print("STEP 5: Prepare the training data (grade only the answer)")
 print("=" * 70)
 
 ds = load_tickets()
 
 
 def encode(example):
-    """Tokenize prompt + completion, then blank the prompt out of the labels."""
+    """Turn prompt + answer into tokens, and mark the prompt part 'do not grade'."""
     prompt = build_prompt(example["ticket"])
     full = prompt + example["label"] + tokenizer.eos_token
 
     prompt_ids = tokenizer(prompt, add_special_tokens=False)["input_ids"]
     full_ids = tokenizer(full, add_special_tokens=False)["input_ids"]
 
-    # -100 means "do not grade this position". Everything before the answer
-    # is context, not something we want the model to learn to reproduce.
+    # -100 means "do not grade this position". Everything before the answer is
+    # the ticket we gave the model; we don't want it graded on repeating that.
     labels = [-100] * len(prompt_ids) + full_ids[len(prompt_ids):]
 
     return {"input_ids": full_ids,
@@ -163,17 +141,12 @@ tokenized = ds.map(encode, remove_columns=ds["train"].column_names)
 row = tokenized["train"][0]
 n_masked = sum(1 for l in row["labels"] if l == -100)
 print(f"\n  first example: {len(row['input_ids'])} tokens, "
-      f"{n_masked} masked as prompt, {len(row['labels']) - n_masked} graded")
-print(f"  labels[:12] = {row['labels'][:12]}")
+      f"{n_masked} from the prompt (not graded), {len(row['labels']) - n_masked} graded")
+print(f"  first 12 labels (-100 = not graded): {row['labels'][:12]}")
 print("""
-  Compare with Lab 2, where labels == input_ids and distilgpt2 was graded on
-  re-predicting the ticket text as well as the answer. On a small model that
-  is real capacity spent on something you already have.
-
-  TRL's SFTTrainer will do this masking for you automatically when your columns
-  are named 'prompt' and 'completion'. We do it by hand here for two reasons:
-  you can see exactly what it means, and on a CPU-only box the plain Trainer is
-  dramatically faster.
+  In Lab 2 the model was also graded on repeating the ticket text, which wastes
+  effort a small model can't spare. Here all of the training goes into writing
+  the triage line.
 """)
 
 
@@ -186,9 +159,9 @@ print("=" * 70)
 
 args = TrainingArguments(
     output_dir=OUTPUT_DIR,
-    max_steps=MAX_STEPS,        # a step budget, not epochs -- keeps the lab timed
+    max_steps=MAX_STEPS,        # a fixed number of steps keeps the lab on time
     per_device_train_batch_size=8,
-    learning_rate=1e-3,         # LoRA tolerates a far higher LR than full FT
+    learning_rate=1e-3,         # step size; LoRA can use a bigger one than Lab 2
     warmup_steps=0.1,
     lr_scheduler_type="cosine",
     logging_steps=4,
@@ -200,8 +173,8 @@ args = TrainingArguments(
     seed=42,
 )
 
-# Pads input_ids with the pad token AND labels with -100, which is exactly
-# what completion-only training needs.
+# Pads every example in a batch to the same length, and marks the padding
+# -100 so it is not graded either.
 collator = DataCollatorForSeq2Seq(tokenizer, padding=True, label_pad_token_id=-100)
 
 trainer = Trainer(
@@ -233,7 +206,7 @@ adapter_mb = sum(
     for f in os.listdir(OUTPUT_DIR)
     if os.path.isfile(os.path.join(OUTPUT_DIR, f))
 ) / 1024 ** 2
-# Count the BASE weights only -- get_base_model() still has the adapters attached.
+# Size of the model itself, without the adapters (4 bytes per number).
 full_mb = sum(p.numel() * 4 for n, p in peft_model.get_base_model().named_parameters()
               if "lora_" not in n) / 1024 ** 2
 print(f"\n  Files written: {sorted(os.listdir(OUTPUT_DIR))}")
@@ -241,8 +214,9 @@ print(f"  Adapter directory        : {adapter_mb:8.1f} MB")
 print(f"  A full copy would be     : {full_mb:8.1f} MB")
 print(f"  Ratio                    : {full_mb / adapter_mb:8.0f}x smaller")
 print("""
-  One base model in memory, many adapters on disk. That is how you ship
-  twenty fine-tuned variants without twenty copies of the weights.
+  The model itself stays the same for every task or customer; each one only
+  needs its own small adapter file. Twenty variants = one model + twenty
+  small files, not twenty copies of the model.
 """)
 
 
@@ -266,12 +240,9 @@ save_result("lora_smollm2", s, {
 })
 
 print("""
-  Compare with Lab 2. A 4x larger model, ~2.3% of the parameters trained, an
-  artifact measured in megabytes instead of hundreds of megabytes.
+  Compare with Lab 2: a model four times bigger, only about 2% of it
+  trained, and a saved file measured in megabytes instead of hundreds of
+  megabytes.
 
-  OPTIONAL (about 3 more minutes): set use_dora=True in Step 3 and rerun.
-  DoRA splits each weight update into a magnitude and a direction and only
-  applies the low-rank update to the direction. It usually buys a little
-  quality at low rank, and costs a little speed. At r=16 the difference is
-  small -- at r=4 it is much more visible, which is the real use case.
+  OPTIONAL: the end of Lab 3 in labs.md has two small experiments to try.
 """)

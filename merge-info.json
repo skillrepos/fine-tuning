@@ -82,30 +82,30 @@
     ],
     "extra/lab3_lora_complete.txt": [
       {
-        "anchor": "r=16,                    # rank: the width of the bottleneck",
-        "endAnchor": "use_dora=False,          # flip to True in the optional step below",
+        "anchor": "r=16,                    # adapter size: bigger can learn more",
+        "endAnchor": "use_dora=False,          # the optional step at the end of the lab turns this on",
         "title": "LoRA settings",
         "note": [
-          "**Decides how big the add-on adapters are and where they attach.**",
-          "- `r`: adapter size (capacity). `lora_alpha`: its strength, kept at 2 x r",
-          "- `target_modules`: the seven layer types that get an adapter",
-          "- `use_dora`: the optional DoRA switch in Step 10"
+          "**How big the adapters are, and which layers they attach to.**",
+          "- `r`: adapter size. `lora_alpha`: how strongly it counts (2 x r)",
+          "- `target_modules`: the seven layer names from Step 2",
+          "- `use_dora`: turned on in the optional step at the end"
         ]
       },
       {
         "anchor": "peft_model = get_peft_model(model, peft_config)",
         "title": "Attach the adapters",
         "note": [
-          "**Freezes the base model and adds small trainable adapters beside its layers.**",
-          "- The printed line shows only about 2.3% of parameters will train"
+          "**Freezes the model and adds small trainable adapters next to its layers.**",
+          "- The printed line shows only about 2% of the model will train"
         ]
       },
       {
         "anchor": "labels = [-100] * len(prompt_ids) + full_ids[len(prompt_ids):]",
         "title": "Grade only the answer",
         "note": [
-          "**Marks every prompt position -100 so only the triage line is graded.**",
-          "- Lab 2 skipped this, so the model also practised retyping tickets"
+          "**Marks the prompt part -100 (\"don't grade\"), so only the answer is graded.**",
+          "- Lab 2 also graded the model on retyping the ticket"
         ]
       },
       {
@@ -113,8 +113,8 @@
         "endAnchor": "processing_class=tokenizer,",
         "title": "Hand the data to the Trainer",
         "note": [
-          "**Same Trainer as Lab 2, but it now trains the adapter model.**",
-          "- The collator pads labels with -100 so the masking survives batching"
+          "**Same Trainer as Lab 2, but now it trains only the adapters.**",
+          "- Padding is marked -100 too, so filler is never graded"
         ]
       }
     ],
@@ -283,44 +283,44 @@
     ],
     "finetune/lab3_lora.py": [
       {
-        "anchor": "# TODO 1: configure LoRA",
-        "done": "r=16,                    # rank: the width of the bottleneck",
+        "anchor": "# TODO 1: set up LoRA",
+        "done": "r=16,                    # adapter size: bigger can learn more",
         "title": "LoRA settings",
         "note": [
-          "**Decides how big the add-on adapters are and where they attach.**",
-          "- `r`: adapter size (capacity). `lora_alpha`: its strength, kept at 2 x r",
-          "- `target_modules`: the seven layer types that get an adapter",
-          "- `use_dora`: the optional DoRA switch in Step 10"
+          "**How big the adapters are, and which layers they attach to.**",
+          "- `r`: adapter size. `lora_alpha`: how strongly it counts (2 x r)",
+          "- `target_modules`: the seven layer names from Step 2",
+          "- `use_dora`: turned on in the optional step at the end"
         ],
-        "lines": 7
+        "lines": 6
       },
       {
-        "anchor": "# TODO 2: wrap the base model with the LoRA config, then print the",
+        "anchor": "# TODO 2: add the LoRA adapters to the model",
         "done": "peft_model = get_peft_model(model, peft_config)",
         "title": "Attach the adapters",
         "note": [
-          "**Freezes the base model and adds small trainable adapters beside its layers.**",
-          "- The printed line shows only about 2.3% of parameters will train"
+          "**Freezes the model and adds small trainable adapters next to its layers.**",
+          "- The printed line shows only about 2% of the model will train"
         ],
         "lines": 3
       },
       {
-        "anchor": "# TODO 3: build the labels. Every PROMPT position must be -100 so it",
+        "anchor": "# TODO 3: build the labels (what the model is graded on)",
         "done": "labels = [-100] * len(prompt_ids) + full_ids[len(prompt_ids):]",
         "title": "Grade only the answer",
         "note": [
-          "**Marks every prompt position -100 so only the triage line is graded.**",
-          "- Lab 2 skipped this, so the model also practised retyping tickets"
+          "**Marks the prompt part -100 (\"don't grade\"), so only the answer is graded.**",
+          "- Lab 2 also graded the model on retyping the ticket"
         ],
         "lines": 3
       },
       {
-        "anchor": "# TODO 4: assemble the Trainer around peft_model",
+        "anchor": "# TODO 4: build the Trainer from the model with adapters",
         "done": "train_dataset=tokenized[\"train\"],",
         "title": "Hand the data to the Trainer",
         "note": [
-          "**Same Trainer as Lab 2, but it now trains the adapter model.**",
-          "- The collator pads labels with -100 so the masking survives batching"
+          "**Same Trainer as Lab 2, but now it trains only the adapters.**",
+          "- Padding is marked -100 too, so filler is never graded"
         ],
         "lines": 5
       }
