@@ -27,6 +27,9 @@
                 "workbench.startupEditor": "readme",
                 "workbench.editorAssociations": { "*.md": "vscode.markdown.preview.editor" },
                 "terminal.integrated.defaultProfile.linux": "bash",
+                // Yellow highlights in the lab starter files marking where merged
+                // code goes. Set to false to keep only the diff-view hover notes.
+                "mergeInfo.skeletonHighlights": true,
                 "terminal.integrated.profiles.linux": {
                     "bash": { "path": "bash", "args": ["-l"] }
                 }
@@ -40,9 +43,9 @@
     },
     "postCreateCommand": "bash -i scripts/pysetup.sh .venv && bash -i scripts/prefetch_models.sh",
     // Install the Merge Info extension, which shows the hover notes in the
-    // code -d diff views (notes live in merge-info.json at the repo root).
+    // code -d diff views and the yellow highlights in the starter files (notes live in merge-info.json at the repo root).
     // Retries because the install silently fails if VS Code is not ready yet.
     "postAttachCommand": {
-        "merge-info": "nohup bash -c 'for i in 1 2 3 4 5 6; do code --install-extension ${containerWorkspaceFolder}/.devcontainer/merge-info-0.1.1.vsix --force && break; sleep 10; done' >/tmp/merge-info-install.log 2>&1 &"
+        "merge-info": "nohup bash -c 'for i in 1 2 3 4 5 6; do code --install-extension ${containerWorkspaceFolder}/.devcontainer/merge-info-0.2.0.vsix --force && break; sleep 10; done' >/tmp/merge-info-install.log 2>&1 &"
     }
 }

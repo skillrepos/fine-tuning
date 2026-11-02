@@ -274,12 +274,13 @@ code -d extra/lab1_prep_complete.txt finetune/lab1_prep.py
 small arrow next to each highlighted block to copy it from left to right, then
 save with `Cmd+S`.
 
-To also get the short explanations that pop up when you hover over each block
-(the Codespace installs this for you), install the workshop's small VS Code
+To also get the short explanations that pop up when you hover over each block,
+and the yellow highlights in each starter file showing where code goes (the
+Codespace installs this for you), install the workshop's small VS Code
 extension once, from the `fine-tuning` folder:
 
 ```
-code --install-extension .devcontainer/merge-info-0.1.1.vsix
+code --install-extension .devcontainer/merge-info-0.2.0.vsix
 ```
 
 If you prefer a different tool:

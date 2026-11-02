@@ -42,6 +42,10 @@ the left gutter of the diff view, hover over the code beside it to read the note
 When **all** merges are done, save, then close the diff by clicking the `X` on
 its tab.
 
+When you first open a lab's starter file (before the diff), the places where
+code still needs to go are highlighted in yellow — hover over one to see what
+belongs there. Each highlight disappears once you have merged that block.
+
 ![Hover notes in the diff view](./images/merge-info3.png?raw=true "Hover over merge blocks to see what the code does")
 
 **Screenshots.** Image placeholders in this document are being captured against
