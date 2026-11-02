@@ -20,7 +20,7 @@
         "vscode": {
             "settings": {
                 "python.terminal.activateEnvInCurrentTerminal": true,
-                "python.defaultInterpreterPath": ".venv/bin/python",
+                "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python",
                 "github.copilot.enable": { "*": false },
                 "github.copilot.enableAutoComplete": false,
                 "editor.inlineSuggest.enabled": false,

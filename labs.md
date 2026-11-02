@@ -352,18 +352,13 @@ megabytes.**
 
 <br><br>
 
-**The idea in one line.** LoRA freezes the base weights and learns a low-rank
-correction beside them:
-
-```
-    h = W0 @ x  +  (alpha / r) * B @ A @ x
-        ^frozen         ^trainable, rank r
-```
-
-`A` is `r x in_features`, `B` is `out_features x r`. Because `r` is small
-(8, 16, 32) next to layer widths in the hundreds or thousands, `B @ A` costs a
-few million parameters instead of a few hundred million — while still being
-able to express a full-size update to the layer.
+**The idea in plain words.** In Lab 2 you retrained every number inside the
+model. LoRA takes a different approach: it leaves the original model untouched
+and trains a small add-on, called an *adapter*, that sits beside it and adjusts
+its answers. The adapter is only about 2% the size of the model, so training
+needs far less memory, and what you save at the end is a file of tens of
+megabytes instead of a whole new copy of the model. (The math behind how the
+adapter works is on the LoRA slides — you don't need it to do this lab.)
 
 <br><br>
 
@@ -421,12 +416,12 @@ When in doubt, `target_modules="all-linear"` lets PEFT work it out.
 
 5. Look at **STEP 3 and STEP 4**. Two dials worth understanding:
 
-- **`r` (rank)** — capacity. Higher `r` can express a richer update and costs
-  proportionally more parameters. 8-16 is plenty for style and format
-  adaptation; 32-64 for tasks that need new behavior.
-- **`lora_alpha`** — scaling. The update is multiplied by `alpha / r`. The
-  common convention `alpha = 2 * r` keeps the effective strength constant as
-  you change rank, so you can tune `r` without re-tuning your learning rate.
+- **`r` (rank)** — the size of the adapter. A bigger `r` lets the adapter learn
+  more, but makes it bigger and slower to train. 8-16 is usually enough to
+  teach a model a new format or style; 32-64 when it has to learn new behavior.
+- **`lora_alpha`** — how strongly the adapter's adjustments count. The usual
+  rule is to set it to twice `r` (here, `r=16` and `lora_alpha=32`), so that if
+  you change `r` you don't have to retune anything else.
 
 Then read PEFT's `print_trainable_parameters()` line — it reports
 `trainable%: 2.34` or thereabouts. Compare against the `100.0000%` that Lab 2
