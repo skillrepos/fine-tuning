@@ -36,9 +36,6 @@ support tickets into a strict proprietary schema.
 | **GitHub** (free) | **Yes** | To run the workshop's Codespace. Sign up at <https://github.com/signup> if you do not have one. |
 | **Groq** (free, no credit card) | Optional | Only for Lab 5's optional Step 6. See [below](#optional-a-free-groq-api-key-for-lab-5-step-6). |
 
-That is all. **No Hugging Face account or token is needed** — the labs only
-*download* public models and datasets from Hugging Face; nothing is uploaded and
-no Hugging Face cloud service is used. No OpenAI key, no payment method.
 
 <br>
 
@@ -68,11 +65,7 @@ Click here ➡️  [![Open in GitHub Codespaces](https://github.com/codespaces/b
 **3. Click "Create new codespace".** (On some screens the button reads
 **Create codespace**.)
 
-![Creating a new Codespace](./images/ft-setup-create.png?raw=true "Creating a new Codespace")
-
-The repository requires a **4-core / 16 GB** machine and GitHub picks it for you.
-(If you are asked to choose, choose 4-core. The labs are timed for it, and Lab 4
-needs the memory.)
+![Creating a new Codespace](./images/ft-setup-create2.png?raw=true "Creating a new Codespace")
 
 If VS Code asks whether you trust the authors of the files, click
 **Trust Folder & Continue**.
