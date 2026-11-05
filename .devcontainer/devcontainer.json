@@ -36,7 +36,6 @@
             },
             "extensions": [
                 "ms-python.python",
-                "mathematic.vscode-pdf",
                 "vstirbu.vscode-mermaid-preview"
             ]
         }
