@@ -45,7 +45,7 @@ category, so the model has to read both parts of the text.
 
 This data is **synthetic and template-generated**, and it is deliberately more
 learnable than production ticket data. That is a workshop design decision:
-it means a 124M model on 4 CPU cores shows a clear, reliable before/after
+it means an 82M model on 4 CPU cores shows a clear, reliable before/after
 improvement in under three minutes, which is what makes the labs teachable.
 
 Real ticket corpora are messier — inconsistent labels, ambiguous categories,

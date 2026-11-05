@@ -72,7 +72,7 @@
       },
       {
         "anchor": "train_dataset=tokenized[\"train\"],",
-        "endAnchor": "processing_class=tokenizer,   # v5 name -- 'tokenizer=' was removed",
+        "endAnchor": "processing_class=tokenizer,   # the tokenizer (older versions: tokenizer=)",
         "title": "Hand the data to the Trainer",
         "note": [
           "**Gives the Trainer the tokenized tickets, the collator, and the tokenizer.**",
@@ -129,7 +129,7 @@
         ]
       },
       {
-        "anchor": "quantization_config=bnb_config,         # v5: load_in_4bit=True as a kwarg is gone",
+        "anchor": "quantization_config=bnb_config,         # required (load_in_4bit=True alone fails)",
         "lines": 1,
         "title": "Load the model in 4-bit",
         "note": [
@@ -194,7 +194,7 @@
   "skeletons": {
     "finetune/lab1_prep.py": [
       {
-        "anchor": "# TODO 1: map every row through to_prompt_completion() so each row gains",
+        "anchor": "# TODO 1: run every row through to_prompt_completion() so each row gains",
         "done": "formatted = ds.map(to_prompt_completion)",
         "title": "Reshape into prompt / completion",
         "note": [
@@ -205,7 +205,7 @@
         "lines": 3
       },
       {
-        "anchor": "# TODO 2: render `messages` with the tokenizer's chat template.",
+        "anchor": "# TODO 2: use the tokenizer to turn `messages` into chat-format text.",
         "done": "rendered = chat_tok.apply_chat_template(messages, tokenize=False,",
         "title": "Render the chat template",
         "note": [
@@ -216,7 +216,7 @@
         "lines": 3
       },
       {
-        "anchor": "# TODO 3: generate a prediction for each eval row. Show the first 3.",
+        "anchor": "# TODO 3: get the model's answer for each test ticket. Show the first 3.",
         "done": "preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24, show=3)",
         "title": "Baseline predictions",
         "note": [
@@ -226,7 +226,7 @@
         "lines": 2
       },
       {
-        "anchor": "# TODO 4: score the predictions against the gold rows.",
+        "anchor": "# TODO 4: score the answers against the correct labels.",
         "done": "s = score(preds, eval_rows)",
         "title": "Score the baseline",
         "note": [
@@ -238,7 +238,7 @@
     ],
     "finetune/lab2_fullft.py": [
       {
-        "anchor": "# TODO 1: build the full training string -- prompt, then the gold label,",
+        "anchor": "# TODO 1: build the full training text -- the prompt, then the correct",
         "done": "text = build_prompt(example[\"ticket\"]) + example[\"label\"] + tokenizer.eos_token",
         "title": "One training string per ticket",
         "note": [
@@ -248,7 +248,7 @@
         "lines": 4
       },
       {
-        "anchor": "# TODO 2: build a causal-LM collator (mlm=False), not a masked-LM one.",
+        "anchor": "# TODO 2: build the batching helper (collator) for a model that writes",
         "done": "collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)",
         "title": "Data collator",
         "note": [
@@ -259,7 +259,7 @@
         "lines": 2
       },
       {
-        "anchor": "# TODO 3: fill in the training arguments.",
+        "anchor": "# TODO 3: fill in the training settings: 2 passes over the data (epochs),",
         "done": "num_train_epochs=2,",
         "title": "Training settings",
         "note": [
@@ -271,7 +271,7 @@
         "lines": 5
       },
       {
-        "anchor": "# TODO 4: assemble the Trainer. Careful",
+        "anchor": "# TODO 4: build the Trainer. Careful: in current versions of the",
         "done": "train_dataset=tokenized[\"train\"],",
         "title": "Hand the data to the Trainer",
         "note": [
@@ -327,7 +327,7 @@
     ],
     "finetune/lab4_qlora.py": [
       {
-        "anchor": "# TODO 1: build the 4-bit config -- NF4 quant type, bfloat16 compute",
+        "anchor": "# TODO 1: build the 4-bit settings -- the \"nf4\" format, math done in",
         "done": "bnb_config = BitsAndBytesConfig(",
         "title": "4-bit quantization settings",
         "note": [
@@ -339,7 +339,7 @@
       },
       {
         "anchor": "    BASE_MODEL,",
-        "done": "quantization_config=bnb_config,         # v5: load_in_4bit=True as a kwarg is gone",
+        "done": "quantization_config=bnb_config,         # required (load_in_4bit=True alone fails)",
         "title": "Load the model in 4-bit",
         "note": [
           "**Passes those settings in while loading, so weights are stored in 4 bits.**",
@@ -348,7 +348,7 @@
         "lines": 1
       },
       {
-        "anchor": "# TODO 2: prepare the quantized model for training (this casts layer",
+        "anchor": "# TODO 2: get the 4-bit model ready for training (this switches a few",
         "done": "model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)",
         "title": "Prepare a 4-bit model for training",
         "note": [
@@ -367,7 +367,7 @@
         "lines": 3
       },
       {
-        "anchor": "# TODO 3: attach the saved adapter to the bfloat16 base with",
+        "anchor": "# TODO 3: attach the saved adapter to the normal (bfloat16) model with",
         "done": "merged = PeftModel.from_pretrained(base, ADAPTER_DIR)",
         "title": "Merge the adapter",
         "note": [
@@ -400,7 +400,7 @@
         "lines": 3
       },
       {
-        "anchor": "# TODO 4 (optional step): ask the frontier model for a prediction on each",
+        "anchor": "# TODO 4 (optional step): ask the large hosted model to answer each test",
         "done": "groq_preds = groq_predictions(eval_rows, model=FRONTIER, show=2)",
         "title": "Optional frontier comparison",
         "note": [

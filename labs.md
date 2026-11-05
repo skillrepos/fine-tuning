@@ -131,14 +131,16 @@ guesses. Warnings about `loss_type` or pad tokens are harmless.
 <br><br>
 
 5. Look at **STEP 1** and **STEP 2**. STEP 1 shows the data loaded as a training
-set and a test set, with their columns and row counts. STEP 2 shows how many
-tickets fall in each category. That balance matters: if one category had 80% of
+set and a test set, with their columns and row counts. Each training row already
+includes its correct category and priority (the answer key). STEP 2 counts them
+to show how balanced they are. That balance matters: if one category had 80% of
 the rows, the model would learn to guess that category for everything.
 
 <br><br>
 
-6. Look at **STEP 3**. This is what the model is trained on — the ticket, as the
-*prompt*:
+6. Look at **STEP 3**. The data file has no prompt or completion columns; this
+step builds them from each row. The ticket, wrapped in a short fixed template,
+becomes the *prompt*:
 
 ```
 ### Ticket:
@@ -147,8 +149,10 @@ Hi team, I cannot sign in to DriverPortal. It says my account is locked...
 ### Triage:
 ```
 
-...and, kept separately, the answer it must produce (the *completion*). Keeping
-them separate is what lets Lab 3 grade the model on the answer alone.
+...and the row's label becomes the answer the model must produce (the
+*completion*). During training the model reads both parts, but we only want to
+grade it on the answer, not on copying the ticket back. Keeping the two parts
+separate is what lets Lab 3 do that.
 
 <br><br>
 
@@ -166,22 +170,39 @@ ordinary CPU; longer text gets slow very quickly.
 
 <br><br>
 
-9. Now the important part — **STEP 7 and STEP 8**. Read the three sample
-predictions. distilgpt2 has never seen this format, so its answers are nowhere
-close. Your scores should be:
+9. Now the important part — **STEP 7 and STEP 8**. STEP 7 gives the model 20
+tickets from the test set and prints the first 3. For each one, compare the
+`EXPECTED` line (the correct answer from the data) with the `PREDICTED` line
+(what the model wrote). Your scores should be:
 
 ```
   === BASELINE - distilgpt2, no training (n=20) ===
-    schema valid :   0.0%
-    category acc :   0.0%
-    priority acc :   0.0%
-    queue acc    :   0.0%
+    right format     :   0.0%
+    category correct :   0.0%
+    priority correct :   0.0%
+    queue correct    :   0.0%
 ```
 
 ![Lab 1 baseline scores](./images/ft-lab1-baseline.png?raw=true "Baseline scores are zero across the board")
 
-Why *exactly* zero? distilgpt2 is a **base** model: it was only trained to
-continue text, never to follow instructions, so it just keeps writing from
+**How the scores are measured.** Each of the 20 answers is checked in two
+stages:
+
+- **right format** asks: is the answer one line in exactly the form
+  `category: ... | priority: ... | queue: ...`?
+- **category correct**, **priority correct** and **queue correct** are then
+  checked only for answers in the right format: does that part match the `EXPECTED`
+  line? An answer in any other form gets no credit for any of the three, because
+  the script has no way to tell which words in a free-form sentence are meant as
+  the category, priority or queue.
+
+Each score is the number of answers that earned credit, divided by 20. Look at
+the sample predictions: the model just writes a sentence about the ticket, or
+repeats it. Not one of the 20 answers is in the right form, so `right format` is
+0 out of 20 — and that forces the other three to 0 as well.
+
+Why does it write sentences? distilgpt2 is a **base** model: it was only trained
+to continue text, never to follow instructions, so it just keeps writing from
 wherever the prompt stops. The SmolLM2-**Instruct** model in Lab 3 was also
 trained to follow instructions — keep that difference in mind when you compare
 labs.
@@ -295,8 +316,8 @@ copies.
 
 <br><br>
 
-9. Look at **STEP 7**. Expect `schema valid` (answers in the right format) to
-jump dramatically while category accuracy lags behind. That gap is the lesson:
+9. Look at **STEP 7**. Expect `right format` to jump dramatically while
+`category correct` lags behind. That gap is the lesson:
 **learning a format is easy; learning to pick the right category takes a more
 capable model.**
 
@@ -652,7 +673,7 @@ python finetune/lab5_eval.py
 6. Look at **STEP 1**, the comparison table:
 
 ```
-run                                      schema  category  priority   queue      MB  steps    sec
+run                                      format  category  priority   queue      MB  steps    sec
 -------------------------------------------------------------------------------------------------
 Lab 1  baseline    distilgpt2  82M        0.0%     0.0%     0.0%   0.0%       -      -      -
 Lab 2  full FT     distilgpt2  82M        ...      ...      ...    ...      ...     72    ...
@@ -660,7 +681,7 @@ Lab 3  LoRA fp32   SmolLM2  360M          ...      ...      ...    ...      ... 
 Lab 4  QLoRA probe SmolLM2  360M          ...      ...      ...    ...      ...      4    ...
 ```
 
-Read every column, not just one. `schema`: does it answer in the right format?
+Read every column, not just one. `format`: does it answer in the right format?
 `category`: does it understand the ticket? `MB`: how big is what you would ship?
 `steps`: how much training did it get? `sec`: how long did training take? A
 single "accuracy" number would hide all of that.

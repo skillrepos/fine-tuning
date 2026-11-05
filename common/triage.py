@@ -31,7 +31,7 @@ OUT_DIR = os.path.join(REPO_ROOT, "out")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # --------------------------------------------------------------------------
-# The task: turn a free-text support ticket into one strict schema line.
+# The task: turn a support ticket into one line in a fixed format.
 # --------------------------------------------------------------------------
 
 CATEGORIES = [
@@ -56,9 +56,9 @@ QUEUES = [
 
 PROMPT_TEMPLATE = "### Ticket:\n{ticket}\n\n### Triage:\n"
 
-# The best-case prompt for a model we are NOT fine-tuning: hand it the entire
-# label space and the exact output contract. Lab 5 uses this to give a frontier
-# model its fairest possible shot at the task.
+# The best prompt we can write for a model we are NOT fine-tuning: it lists
+# every category, priority and queue, and the exact answer format. Lab 5 uses
+# it to give a large hosted model its fairest possible shot at the task.
 ZERO_SHOT_SYSTEM = f"""You are a support ticket triage system for Northwind Logistics.
 
 Read the ticket and reply with EXACTLY ONE LINE in this format, nothing else:
@@ -80,7 +80,7 @@ Queue is determined by category:
 Priority comes from the urgency language in the ticket, not from the category.
 Output the single line only. No explanation, no preamble, no code fences."""
 
-# A prediction only counts as schema-valid if it matches this exactly.
+# An answer only counts as "right format" if it matches this exactly.
 SCHEMA_RE = re.compile(
     r"^category:\s*(?P<category>[a-z-]+)\s*\|\s*"
     r"priority:\s*(?P<priority>P[1-4])\s*\|\s*"
@@ -109,11 +109,11 @@ def load_tickets():
 
 
 def to_prompt_completion(example):
-    """Map a raw row to the prompt/completion format TRL understands.
+    """Split a raw row into the two parts the labs train on.
 
-    TRL detects the 'prompt' and 'completion' columns and automatically masks
-    the prompt tokens out of the loss -- the model is only graded on the part
-    we actually want it to produce.
+    'prompt' is the ticket wrapped in PROMPT_TEMPLATE; 'completion' is the
+    label the model must produce. Keeping them separate is what lets Lab 3
+    grade the model on the completion only, not on repeating the ticket.
     """
     return {
         "prompt": build_prompt(example["ticket"]),
@@ -144,8 +144,8 @@ def generate_predictions(model, tokenizer, rows, max_new_tokens=24, show=0):
                 do_sample=False,
                 eos_token_id=tokenizer.eos_token_id,
                 pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
-                # Belt and braces: a small model that has not fully learned to
-                # emit EOS will still be cut off at the end of its first line.
+                # A backup: a small model that hasn't fully learned to stop
+                # (by writing its end token) still gets cut off after one line.
                 stop_strings=["\n"],
                 tokenizer=tokenizer,
             )
@@ -169,11 +169,12 @@ def generate_predictions(model, tokenizer, rows, max_new_tokens=24, show=0):
 def score(preds, rows):
     """Score predictions against the gold labels.
 
-    Returns a dict with four numbers:
-      schema_valid  -- fraction that match the required schema at all
-      category_acc  -- fraction with the correct category
-      priority_acc  -- fraction with the correct priority
-      queue_acc     -- fraction with the correct queue
+    Returns a dict with four fractions (printed with the plain labels below):
+      schema_valid  -- "right format": the answer is one line in the exact form
+      category_acc  -- "category correct"
+      priority_acc  -- "priority correct"
+      queue_acc     -- "queue correct"
+    An answer that is not in the right format gets no credit for any part.
     """
     n = len(rows)
     valid = cat = pri = que = 0
@@ -196,10 +197,10 @@ def score(preds, rows):
 
 def print_scores(name, s):
     print(f"\n  === {name} (n={s['n']}) ===")
-    print(f"    schema valid : {s['schema_valid']:6.1%}")
-    print(f"    category acc : {s['category_acc']:6.1%}")
-    print(f"    priority acc : {s['priority_acc']:6.1%}")
-    print(f"    queue acc    : {s['queue_acc']:6.1%}")
+    print(f"    right format     : {s['schema_valid']:6.1%}")
+    print(f"    category correct : {s['category_acc']:6.1%}")
+    print(f"    priority correct : {s['priority_acc']:6.1%}")
+    print(f"    queue correct    : {s['queue_acc']:6.1%}")
 
 
 def save_result(key, scores, extra=None):

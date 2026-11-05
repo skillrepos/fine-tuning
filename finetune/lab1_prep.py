@@ -2,8 +2,9 @@
 Lab 1 - Dataset preparation and baseline evaluation.
 
 Before you train anything, you need two things:
-  1. A dataset in the exact shape the trainer expects.
-  2. A baseline score, so you can prove later that training helped.
+  1. The data, in the exact form the training code expects.
+  2. A starting score (the baseline), so you can prove later that
+     training helped.
 
 This script does both.
 """
@@ -25,7 +26,7 @@ N_EVAL = 20          # keep the baseline quick -- 20 tickets is plenty to see th
 
 
 # ==========================================================================
-# STEP 1 - Load the raw data through the Hugging Face datasets library
+# STEP 1 - Load the ticket data
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 1: Load the ticket dataset")
@@ -43,7 +44,7 @@ print(f"\nLabel space: {len(CATEGORIES)} categories x {len(PRIORITIES)} prioriti
 
 
 # ==========================================================================
-# STEP 2 - Look at the label distribution
+# STEP 2 - Count how many tickets have each category and priority
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 2: Check the label distribution")
@@ -58,13 +59,13 @@ for col in ["category", "priority"]:
 
 
 # ==========================================================================
-# STEP 3 - Reshape into prompt / completion pairs
+# STEP 3 - Split each row into a prompt and the answer we want back
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 3: Format as prompt / completion pairs")
 print("=" * 70)
 
-# TODO 1: map every row through to_prompt_completion() so each row gains
+# TODO 1: run every row through to_prompt_completion() so each row gains
 #         a "prompt" and a "completion" column.
 formatted = None
 row = formatted["train"][0]
@@ -76,13 +77,14 @@ print("COMPLETION (what the model must produce):")
 print("-" * 60)
 print(row["completion"])
 print("-" * 60)
-print("\nTRL detects the 'prompt' and 'completion' columns and masks the prompt")
-print("tokens out of the loss automatically -- the model is only graded on the")
-print("triage line, not on repeating the ticket back to us.")
+print("\nThese two parts are not in the data file -- this step built them from each")
+print("row. The prompt is the ticket inside a short fixed template; the completion")
+print("is the row's label. Keeping them apart lets Lab 3 grade the model only on")
+print("the completion, not on repeating the ticket back to us.")
 
 
 # ==========================================================================
-# STEP 4 - The other format you will meet: chat templates
+# STEP 4 - The same ticket in the format chat models expect
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 4: What a chat template does to the same example")
@@ -93,8 +95,9 @@ messages = [
     {"role": "system", "content": "You are a support ticket triage assistant."},
     {"role": "user", "content": build_prompt(ds["train"][0]["ticket"])},
 ]
-# TODO 2: render `messages` with the tokenizer's chat template.
-#         Ask for a string (tokenize=False) and a generation prompt.
+# TODO 2: use the tokenizer to turn `messages` into chat-format text.
+#         Ask for plain text (tokenize=False) that ends where the
+#         model's reply should start (add_generation_prompt=True).
 rendered = None
 print(rendered)
 print("-" * 60)
@@ -103,7 +106,7 @@ print("trained on. Use the wrong template and quality quietly degrades.")
 
 
 # ==========================================================================
-# STEP 5 - Tokenize and measure sequence lengths
+# STEP 5 - Split the text into tokens and count them
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 5: How long are these sequences?")
@@ -124,7 +127,7 @@ print("  drives cost quadratically in attention -- keep it tight.")
 
 
 # ==========================================================================
-# STEP 6 - Load the base model, untrained
+# STEP 6 - Load the model before any training
 # ==========================================================================
 print("\n" + "=" * 70)
 print(f"STEP 6: Load {BASE_MODEL} and look at it before any training")
@@ -136,14 +139,14 @@ print(f"\n  {BASE_MODEL}: {total:,} parameters ({total / 1e6:.0f}M)")
 
 
 # ==========================================================================
-# STEP 7 - Run the baseline
+# STEP 7 - Get the untrained model's answers
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 7: Baseline predictions from the untrained model")
 print("=" * 70)
 
 eval_rows = list(ds["eval"])[:N_EVAL]
-# TODO 3: generate a prediction for each eval row. Show the first 3.
+# TODO 3: get the model's answer for each test ticket. Show the first 3.
 preds = None
 
 
@@ -154,16 +157,22 @@ print("\n" + "=" * 70)
 print("STEP 8: Score the baseline")
 print("=" * 70)
 
-# TODO 4: score the predictions against the gold rows.
+# TODO 4: score the answers against the correct labels.
 s = None
 print_scores("BASELINE - distilgpt2, no training", s)
 save_result("baseline_distilgpt2", s, {"model": BASE_MODEL, "trained": False})
 
-print("""
-  This is the number every later lab has to beat.
+print(f"""
+  How these were measured: each of the {s['n']} answers is compared with its
+  EXPECTED line.
+    right format -- is the answer one line in exactly this form?
+                    category: ... | priority: ... | queue: ...
+    category / priority / queue correct -- for answers in that form only,
+                    is that part the same as the expected one?
+  An answer in any other form gets no credit for any part. Look at the
+  PREDICTED lines above: the model just keeps writing sentences, so none are
+  in the right form -- and all four scores are 0%.
 
-  Notice it is not just "wrong answers" -- the model does not even produce the
-  right SHAPE of answer. No amount of prompt engineering makes an 82M base
-  model reliably emit a proprietary schema it has never seen. That is the gap
-  fine-tuning closes.
+  This is the number every later lab has to beat. Fine-tuning is what teaches
+  the model to answer in this form at all.
 """)

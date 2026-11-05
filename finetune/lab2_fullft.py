@@ -1,12 +1,13 @@
 """
-Lab 2 - Full fine-tuning with the Hugging Face Trainer.
+Lab 2 - Full fine-tuning.
 
-Every parameter in the model gets an update. This is the baseline that LoRA
-and QLoRA are measured against -- both in quality and in cost.
+Full fine-tuning updates every number (parameter) in the model. Labs 3 and 4
+use cheaper methods, LoRA and QLoRA, and are compared with this one -- both
+for how good the answers are and for what the training costs.
 
-We use distilgpt2 (82M parameters -- it is the 6-layer distillation of GPT-2's
-124M) because it is the largest model you can honestly full-fine-tune on 4 CPU
-cores in a couple of minutes.
+We use distilgpt2 (82 million parameters -- a smaller, 6-layer version of the
+124-million-parameter GPT-2) because it is about the largest model you can
+fully fine-tune on 4 CPU cores in a couple of minutes.
 """
 
 import sys, os, time
@@ -29,7 +30,7 @@ N_EVAL = 20
 
 
 # ==========================================================================
-# STEP 1 - Model and tokenizer
+# STEP 1 - Load the model and its tokenizer (turns text into tokens)
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 1: Load model and tokenizer")
@@ -37,8 +38,9 @@ print("=" * 70)
 
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
 
-# GPT-2 ships without a padding token. The reflex is `pad_token = eos_token`,
-# and it quietly breaks this lab -- see the note below.
+# GPT-2 has no padding token (filler that evens out lengths). Reusing the
+# end token for padding is a common shortcut, but it breaks this lab -- the
+# printout below explains why -- so we add a separate one.
 tokenizer.add_special_tokens({"pad_token": "<|pad|>"})
 
 model = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.float32)
@@ -59,7 +61,7 @@ print(f"""
 
 
 # ==========================================================================
-# STEP 2 - Tokenize prompt + completion into one training sequence
+# STEP 2 - Join the prompt and answer into one training example, as tokens
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 2: Tokenize the dataset")
@@ -69,9 +71,9 @@ ds = load_tickets()
 
 
 def tokenize(example):
-    # TODO 1: build the full training string -- prompt, then the gold label,
-    #         then an EOS token so the model learns where to stop.
-    #         Then tokenize it with truncation at 192 tokens.
+    # TODO 1: build the full training text -- the prompt, then the correct
+    #         label, then the end token (eos_token) so the model learns
+    #         where to stop. Then turn it into tokens, cut off at 192.
     text = ""
     return tokenizer(text, truncation=True, max_length=192)
 
@@ -89,13 +91,14 @@ print("""
 
 
 # ==========================================================================
-# STEP 3 - The collator: dynamic padding, causal (not masked) LM
+# STEP 3 - Group examples into batches and pad them to equal length
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 3: Build the data collator")
 print("=" * 70)
 
-# TODO 2: build a causal-LM collator (mlm=False), not a masked-LM one.
+# TODO 2: build the batching helper (collator) for a model that writes
+#         text left to right -- that is what mlm=False means.
 collator = None
 batch = collator([tokenized["train"][i] for i in range(4)])
 # Pick the SHORTEST row in the batch -- that is the one that actually got
@@ -113,15 +116,16 @@ print("\n  mlm=False means causal language modelling -- predict the NEXT token."
 
 
 # ==========================================================================
-# STEP 4 - Training arguments
+# STEP 4 - Training settings
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 4: Configure training")
 print("=" * 70)
 
-# TODO 3: fill in the training arguments. 2 epochs, batch size 8,
-#         lr 3e-4, cosine schedule, log every 5 steps, no saving,
-#         no reporting, and force CPU.
+# TODO 3: fill in the training settings: 2 passes over the data (epochs),
+#         8 examples per batch, learning rate 3e-4 that slowly shrinks
+#         (cosine), a progress line every 5 steps, no checkpoint saving,
+#         no outside reporting tools, and CPU only.
 args = TrainingArguments(
     output_dir=OUTPUT_DIR,
 )
@@ -136,8 +140,8 @@ print("\n" + "=" * 70)
 print("STEP 5: Train (about 2-4 minutes on 4 CPU cores)")
 print("=" * 70)
 
-# TODO 4: assemble the Trainer. Careful: in transformers v5 the tokenizer
-#         argument is called processing_class.
+# TODO 4: build the Trainer. Careful: in current versions of the
+#         transformers library, the tokenizer goes in processing_class=.
 trainer = Trainer(
     model=model,
     args=args,
@@ -152,7 +156,7 @@ print(f"  Final training loss: {result.training_loss:.4f}")
 
 
 # ==========================================================================
-# STEP 6 - Save the model and measure what that cost on disk
+# STEP 6 - Save the model and check how much disk space it takes
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 6: Save the fine-tuned model")
@@ -175,7 +179,7 @@ print("""
 
 
 # ==========================================================================
-# STEP 7 - Evaluate
+# STEP 7 - Score the trained model
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 7: Evaluate the fine-tuned model")
@@ -195,8 +199,8 @@ save_result("fullft_distilgpt2", s, {
 print("""
   Compare against the Lab 1 baseline.
 
-  Expect schema validity to jump dramatically -- the model learned the SHAPE
-  of the answer almost immediately. Category accuracy will be much weaker.
+  Expect "right format" to jump dramatically -- the model learned the form
+  of the answer almost immediately. "category correct" will be much weaker.
   82M parameters can learn a format; learning to actually reason about which
   category a ticket belongs to needs a bigger model. That is Lab 3.
 """)

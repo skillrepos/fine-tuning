@@ -1,5 +1,5 @@
 """
-Lab 3 - LoRA fine-tuning with PEFT.
+Lab 3 - LoRA fine-tuning (with Hugging Face's PEFT library).
 
 Same task as Lab 2, with a model four times bigger. This time we do NOT
 retrain the whole model. LoRA keeps the original model frozen (unchanged) and
@@ -72,7 +72,7 @@ print("""
 
 
 # ==========================================================================
-# STEP 3 - Configure LoRA
+# STEP 3 - Choose the LoRA settings
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 3: Configure LoRA")
@@ -221,7 +221,7 @@ print("""
 
 
 # ==========================================================================
-# STEP 8 - Evaluate
+# STEP 8 - Score the trained model
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 8: Evaluate the LoRA model")

@@ -1,21 +1,22 @@
 """
-Lab 4 - QLoRA: 4-bit NormalFloat quantization + LoRA adapters, then export.
+Lab 4 - QLoRA: LoRA on a model stored in 4 bits, then export the result.
 
-LoRA shrank the number of TRAINABLE parameters. It did nothing about the
-frozen base model still sitting in memory at 2 or 4 bytes per weight.
+LoRA (Lab 3) cut down how much of the model trains. But the whole model still
+has to sit in memory, at 2 or 4 bytes per number.
 
-QLoRA fixes that: quantize the frozen base to 4-bit NF4, keep the LoRA
-adapters at higher precision, and backpropagate through the quantized weights.
+QLoRA shrinks that too: it stores the frozen model in 4 bits per number (a
+format called NF4) and trains normal-precision LoRA adapters on top of it.
 
-READ THIS BEFORE YOU RUN IT. This lab is about MECHANICS and MEMORY, not
-about quality. We train for only 4 steps here, and we will measure exactly
-why: on a CPU, bitsandbytes 4-bit matmuls are roughly 20-25x slower per step
-than float32, so a Lab 3-sized run would take over an hour. QLoRA is a GPU
-technique that buys memory. Pretending otherwise would waste your afternoon.
+READ THIS BEFORE YOU RUN IT. This lab is about how QLoRA works and how much
+memory it saves, not about answer quality. We train for only 4 steps, and the
+lab measures why: on a CPU, 4-bit math is roughly 20-25x slower per step than
+the normal 32-bit math, so a Lab 3-sized run would take over an hour. QLoRA
+is meant for graphics cards (GPUs), where its memory savings pay off.
 
-What you WILL come away with: the 4-bit memory numbers, proof that gradients
-really do flow through quantized weights, the merge-and-export rule that most
-people get wrong, and a live demonstration of the size tier 4-bit unlocks.
+What you WILL come away with: the 4-bit memory numbers, proof that training
+still works through a 4-bit model, the right way to merge and export the
+result (a step many people get wrong), and a bigger model loaded in 4 bits
+to show what the memory savings make possible.
 """
 
 import sys, os, gc, json, time
@@ -37,22 +38,22 @@ BASE_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"   # same model as Lab 3
 BIG_MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"     # Step 8: memory only
 ADAPTER_DIR = os.path.join(OUT_DIR, "smollm2-qlora")
 MERGED_DIR = os.path.join(OUT_DIR, "smollm2-qlora-merged")
-QLORA_STEPS = 4           # NOT convergence -- see Step 5
-QLORA_BATCH = 2           # 4-bit CPU matmuls scale badly with batch size
+QLORA_STEPS = 4           # far too few to train fully -- see Step 5
+QLORA_BATCH = 2           # 4-bit math on a CPU slows down a lot with bigger batches
 N_EVAL = 20
 
 
 # ==========================================================================
-# STEP 1 - How big is this model at normal precision?
+# STEP 1 - How much memory does the model normally take?
 # ==========================================================================
 print("\n" + "=" * 70)
 print(f"STEP 1: Load {BASE_MODEL} at bfloat16 and measure it")
 print("=" * 70)
 
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
-# Identical to Lab 3: point PAD at a spare existing token so it does not collide
-# with EOS. We must NOT grow the vocabulary here -- you cannot cleanly resize the
-# embedding table of an already-quantized model.
+# Same as Lab 3: use a spare existing token for padding, so it is different
+# from the end token. We can't ADD a new token here (as Lab 2 did): a model
+# already stored in 4 bits can't be cleanly resized to make room for one.
 if tokenizer.pad_token_id == tokenizer.eos_token_id:
     tokenizer.pad_token = "<|endoftext|>"
 
@@ -68,16 +69,16 @@ gc.collect()
 
 
 # ==========================================================================
-# STEP 2 - Load the same model in 4-bit NF4
+# STEP 2 - Load the same model again, stored in 4 bits per number
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 2: Load it again, quantized to 4-bit NormalFloat")
 print("=" * 70)
 
-# TODO 1: build the 4-bit config -- NF4 quant type, bfloat16 compute
-#         dtype, double quantization on. Then load the model with it.
-#         In transformers v5 you MUST pass quantization_config=;
-#         load_in_4bit=True as a from_pretrained kwarg was removed.
+# TODO 1: build the 4-bit settings -- the "nf4" format, math done in
+#         bfloat16, and double quantization on. Then load the model with
+#         them by passing quantization_config= (current versions no
+#         longer accept load_in_4bit=True on its own).
 bnb_config = None
 
 model = AutoModelForCausalLM.from_pretrained(
@@ -127,15 +128,15 @@ print("""
 
 
 # ==========================================================================
-# STEP 4 - Prepare the quantized model for training, then add LoRA
+# STEP 4 - Get the 4-bit model ready for training, then add LoRA
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 4: Attach LoRA adapters to the quantized model")
 print("=" * 70)
 
-# TODO 2: prepare the quantized model for training (this casts layer
-#         norms and the LM head back up to a stable dtype), then build
-#         a LoRA config IDENTICAL to the one you used in Lab 3.
+# TODO 2: get the 4-bit model ready for training (this switches a few
+#         sensitive layers back to higher precision so training stays
+#         stable), then build LoRA settings IDENTICAL to Lab 3's.
 peft_config = LoraConfig(
     r=16,
     lora_alpha=32,
@@ -147,7 +148,7 @@ model.print_trainable_parameters()
 
 
 # ==========================================================================
-# STEP 5 - Train 4 steps, and time them honestly
+# STEP 5 - Train 4 steps and time them
 # ==========================================================================
 print("\n" + "=" * 70)
 print(f"STEP 5: Train {QLORA_STEPS} steps through the quantized base "
@@ -214,7 +215,7 @@ print(f"\n  Trained {QLORA_STEPS} steps in {elapsed:.0f}s   "
       f"final loss {result.training_loss:.4f}")
 print(f"  4-bit NF4, batch {QLORA_BATCH}: {qlora_s_per_step:.1f} s/step")
 
-# Read Lab 3's float32 number back out of results.json so the comparison is
+# Read Lab 3's training time back out of results.json so the comparison is
 # between two runs YOU made on THIS machine, not two numbers from a slide.
 results_path = os.path.join(OUT_DIR, "results.json")
 lab3 = {}
@@ -260,7 +261,7 @@ gc.collect()
 
 
 # ==========================================================================
-# STEP 6 - Merge the adapter into a full-precision base and export
+# STEP 6 - Fold the adapter into a normal (not 4-bit) copy of the model, and save it
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 6: Merge the adapter and export a standalone model")
@@ -268,9 +269,9 @@ print("=" * 70)
 
 print("\n  Reloading the base at bfloat16 (NOT 4-bit) to merge into...")
 base = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.bfloat16)
-# TODO 3: attach the saved adapter to the bfloat16 base with
-#         PeftModel.from_pretrained, then fold the adapter weights
-#         into the base and drop the PEFT wrappers.
+# TODO 3: attach the saved adapter to the normal (bfloat16) model with
+#         PeftModel.from_pretrained, then fold the adapter into the model
+#         so it becomes one ordinary model again.
 merged = base
 
 print(f"  after merge_and_unload(): {type(merged).__name__}")
@@ -305,7 +306,7 @@ print("""
 
 
 # ==========================================================================
-# STEP 7 - What 4 steps actually bought (spoiler: not much)
+# STEP 7 - Score it: what 4 steps of training got us (not much)
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 7: Evaluate the merged model -- and read it honestly")
@@ -321,8 +322,8 @@ save_result("qlora_smollm2", s, {
     "rank": peft_config.r, "steps": QLORA_STEPS, "batch_size": QLORA_BATCH,
     "train_seconds": round(elapsed),
     "sec_per_step": round(qlora_s_per_step, 1),
-    # Store the ADAPTER size so Lab 5's table compares like with like against
-    # Lab 3. The merged directory is recorded separately.
+    # Save the ADAPTER size, so Lab 5's table compares it fairly with Lab 3's
+    # adapter. The merged model's size is saved separately.
     "artifact_mb": round(adapter_mb, 1), "merged_mb": round(merged_mb),
     "bf16_mb": round(bf16_mb), "nf4_mb": round(nf4_mb),
     "final_loss": round(result.training_loss, 4),
@@ -352,7 +353,7 @@ print("""
 
 
 # ==========================================================================
-# STEP 8 - Why this matters: the same trick on a 1.1B model
+# STEP 8 - Why it matters: a 1.1-billion-parameter model in 4 bits
 # ==========================================================================
 print("\n" + "=" * 70)
 print(f"STEP 8: Load {BIG_MODEL} in 4-bit (memory only, no training)")
@@ -362,8 +363,8 @@ big = AutoModelForCausalLM.from_pretrained(
     BIG_MODEL, quantization_config=bnb_config,
     dtype=torch.bfloat16, device_map={"": "cpu"},
 )
-# 4-bit weights are stored two-per-byte, so p.numel() would count half of
-# them. quant_state remembers the original shape -- count that instead.
+# 4-bit numbers are packed two per byte, so a plain count (p.numel()) finds
+# only half of them. quant_state remembers the real count -- use that.
 big_params = sum(p.quant_state.shape.numel() if getattr(p, "quant_state", None) is not None
                  else p.numel() for p in big.parameters())
 big_nf4_mb = model_size_mb(big)

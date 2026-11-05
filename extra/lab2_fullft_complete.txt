@@ -1,12 +1,13 @@
 """
-Lab 2 - Full fine-tuning with the Hugging Face Trainer.
+Lab 2 - Full fine-tuning.
 
-Every parameter in the model gets an update. This is the baseline that LoRA
-and QLoRA are measured against -- both in quality and in cost.
+Full fine-tuning updates every number (parameter) in the model. Labs 3 and 4
+use cheaper methods, LoRA and QLoRA, and are compared with this one -- both
+for how good the answers are and for what the training costs.
 
-We use distilgpt2 (82M parameters -- it is the 6-layer distillation of GPT-2's
-124M) because it is the largest model you can honestly full-fine-tune on 4 CPU
-cores in a couple of minutes.
+We use distilgpt2 (82 million parameters -- a smaller, 6-layer version of the
+124-million-parameter GPT-2) because it is about the largest model you can
+fully fine-tune on 4 CPU cores in a couple of minutes.
 """
 
 import sys, os, time
@@ -29,7 +30,7 @@ N_EVAL = 20
 
 
 # ==========================================================================
-# STEP 1 - Model and tokenizer
+# STEP 1 - Load the model and its tokenizer (turns text into tokens)
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 1: Load model and tokenizer")
@@ -37,8 +38,9 @@ print("=" * 70)
 
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
 
-# GPT-2 ships without a padding token. The reflex is `pad_token = eos_token`,
-# and it quietly breaks this lab -- see the note below.
+# GPT-2 has no padding token (filler that evens out lengths). Reusing the
+# end token for padding is a common shortcut, but it breaks this lab -- the
+# printout below explains why -- so we add a separate one.
 tokenizer.add_special_tokens({"pad_token": "<|pad|>"})
 
 model = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.float32)
@@ -59,7 +61,7 @@ print(f"""
 
 
 # ==========================================================================
-# STEP 2 - Tokenize prompt + completion into one training sequence
+# STEP 2 - Join the prompt and answer into one training example, as tokens
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 2: Tokenize the dataset")
@@ -86,7 +88,7 @@ print("""
 
 
 # ==========================================================================
-# STEP 3 - The collator: dynamic padding, causal (not masked) LM
+# STEP 3 - Group examples into batches and pad them to equal length
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 3: Build the data collator")
@@ -109,7 +111,7 @@ print("\n  mlm=False means causal language modelling -- predict the NEXT token."
 
 
 # ==========================================================================
-# STEP 4 - Training arguments
+# STEP 4 - Training settings
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 4: Configure training")
@@ -120,13 +122,13 @@ args = TrainingArguments(
     num_train_epochs=2,
     per_device_train_batch_size=8,
     learning_rate=3e-4,
-    warmup_steps=0.05,          # a float below 1 is read as a RATIO in v5
+    warmup_steps=0.05,          # below 1 means a share of all steps (5%)
     lr_scheduler_type="cosine",
     logging_steps=5,
     save_strategy="no",
     eval_strategy="no",
     report_to="none",
-    use_cpu=True,               # v5 name -- 'no_cuda' was removed
+    use_cpu=True,               # run on the CPU (older versions: no_cuda)
     seed=42,
 )
 print(f"\n  epochs={args.num_train_epochs}  batch={args.per_device_train_batch_size}  "
@@ -145,7 +147,7 @@ trainer = Trainer(
     args=args,
     train_dataset=tokenized["train"],
     data_collator=collator,
-    processing_class=tokenizer,   # v5 name -- 'tokenizer=' was removed
+    processing_class=tokenizer,   # the tokenizer (older versions: tokenizer=)
 )
 
 t0 = time.time()
@@ -157,7 +159,7 @@ print(f"  Final training loss: {result.training_loss:.4f}")
 
 
 # ==========================================================================
-# STEP 6 - Save the model and measure what that cost on disk
+# STEP 6 - Save the model and check how much disk space it takes
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 6: Save the fine-tuned model")
@@ -180,7 +182,7 @@ print("""
 
 
 # ==========================================================================
-# STEP 7 - Evaluate
+# STEP 7 - Score the trained model
 # ==========================================================================
 print("\n" + "=" * 70)
 print("STEP 7: Evaluate the fine-tuned model")
@@ -200,8 +202,8 @@ save_result("fullft_distilgpt2", s, {
 print("""
   Compare against the Lab 1 baseline.
 
-  Expect schema validity to jump dramatically -- the model learned the SHAPE
-  of the answer almost immediately. Category accuracy will be much weaker.
+  Expect "right format" to jump dramatically -- the model learned the form
+  of the answer almost immediately. "category correct" will be much weaker.
   82M parameters can learn a format; learning to actually reason about which
   category a ticket belongs to needs a bigger model. That is Lab 3.
 """)

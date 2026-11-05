@@ -378,7 +378,7 @@ cheaper, and reproducible.
 **Q: My scores are different from the ones on your slides.**
 A: Expected. Different CPU counts, thread scheduling, and library versions all
 introduce variation, and a 20-item eval sample is noisy. What should reproduce is
-the *shape*: baseline near zero, a large jump in schema validity after any
+the *shape*: baseline near zero, a large jump in "right format" after any
 training, and LoRA and QLoRA close to each other.
 
 **Q: How do I evaluate a task that has no exact answer?**

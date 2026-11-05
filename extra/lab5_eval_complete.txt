@@ -1,16 +1,16 @@
 """
-Lab 5 - Systematic evaluation.
+Lab 5 - Comparing everything you built.
 
-Four models, one table. Plus the question nobody asks until it bites them in
-production: did fine-tuning on our narrow task damage the model's general
-ability?
+Four models, one table. Plus a question people often forget to ask until it
+causes problems later: did training on our one narrow task make the model
+worse at everything else?
 
 Run the two lm_eval commands from labs.md BEFORE running this script -- this
 script reads their output.
 
 Step 6 is optional and needs a free GROQ_API_KEY. It compares everything you
-built against a 120B hosted model given the best prompt we can write. It skips
-cleanly if the key is absent.
+built against a much larger hosted model (120 billion parameters), given the
+best prompt we can write. It is skipped automatically if you have no key.
 """
 
 import sys, os, json, glob
@@ -32,7 +32,7 @@ N_EVAL = 20
 
 
 # ==========================================================================
-# STEP 1 - The task-metric comparison table
+# STEP 1 - The comparison table: every run's scores side by side
 # ==========================================================================
 print("\n" + "=" * 78)
 print("STEP 1: Task metrics across every run")
@@ -49,7 +49,7 @@ LABEL = {
     "qlora_smollm2":       "Lab 4  QLoRA probe SmolLM2  360M",
 }
 
-hdr = (f"{'run':38s} {'schema':>8s} {'category':>9s} {'priority':>9s} "
+hdr = (f"{'run':38s} {'format':>8s} {'category':>9s} {'priority':>9s} "
        f"{'queue':>7s} {'MB':>7s} {'steps':>6s} {'sec':>6s}")
 print("\n" + hdr)
 print("-" * len(hdr))
@@ -117,7 +117,7 @@ preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24)
 
 
 # ==========================================================================
-# STEP 3 - Per-class accuracy: where exactly is it failing?
+# STEP 3 - Score each category separately: where is it failing?
 # ==========================================================================
 print("\n" + "=" * 78)
 print("STEP 3: Per-category breakdown")
@@ -176,7 +176,7 @@ print("""
 
 
 # ==========================================================================
-# STEP 5 - The general-capability regression check
+# STEP 5 - Did training make the model worse at general tasks?
 # ==========================================================================
 print("\n" + "=" * 78)
 print("STEP 5: Did we damage the model? (lm-evaluation-harness results)")
@@ -244,16 +244,16 @@ else:
 
 
 # ==========================================================================
-# STEP 6 (OPTIONAL) - What does a frontier model do with just a prompt?
+# STEP 6 (OPTIONAL) - How does a large hosted model do with just a prompt?
 # ==========================================================================
 print("\n" + "=" * 78)
 print("STEP 6: The prompt-engineering ceiling (optional -- needs GROQ_API_KEY)")
 print("=" * 78)
 
-# Imported from common/triage.py so there is ONE place to change when Groq
-# retires a model -- which it does roughly twice a year. The model this workshop
-# shipped with first, llama-3.3-70b-versatile, was decommissioned 2026-08-16.
-FRONTIER = FRONTIER_MODEL               # ~330x the total parameters of our SmolLM2
+# Set in common/triage.py, so there is ONE place to change when Groq stops
+# offering a model -- which happens about twice a year. The first model this
+# workshop used, llama-3.3-70b-versatile, was retired on 2026-08-16.
+FRONTIER = FRONTIER_MODEL               # about 330x the size of our SmolLM2
 
 groq_preds = groq_predictions(eval_rows, model=FRONTIER, show=2)
 
@@ -272,13 +272,14 @@ else:
         "model": FRONTIER, "trained": False, "method": "zero-shot prompt",
     })
 
-    # Head to head against the model we actually fine-tuned.
+    # Side by side with the model we fine-tuned.
     ours = results.get("lora_smollm2")
     if ours:
-        print(f"\n  {'metric':16s} {'LoRA 360M':>12s} {FRONTIER[:18]:>20s} {'delta':>10s}")
+        print(f"\n  {'score':16s} {'LoRA 360M':>12s} {FRONTIER[:18]:>20s} {'difference':>10s}")
         print("  " + "-" * 62)
-        for k in ("schema_valid", "category_acc", "priority_acc", "queue_acc"):
-            print(f"  {k:16s} {ours[k]:11.1%} {gs[k]:19.1%} {gs[k] - ours[k]:+10.1%}")
+        for k, name in (("schema_valid", "right format"), ("category_acc", "category correct"),
+                        ("priority_acc", "priority correct"), ("queue_acc", "queue correct")):
+            print(f"  {name:16s} {ours[k]:11.1%} {gs[k]:19.1%} {gs[k] - ours[k]:+10.1%}")
 
     print("""
   Read this one carefully, because it is the question your management will ask.
@@ -311,7 +312,7 @@ else:
 
 
 # ==========================================================================
-# STEP 7 - The decision this all feeds
+# STEP 7 - What these results help you decide
 # ==========================================================================
 print("\n" + "=" * 78)
 print("STEP 7: What you would tell your team")
