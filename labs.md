@@ -1,6 +1,6 @@
 # Fine-Tuning Small AI Models: LoRA, QLoRA & Evaluation
 
-## Revision 1.7 - 11/02/26
+## Revision 1.8 - 11/05/26
 
 **Workshop labs — 5 labs, 10-12 minutes each**
 
@@ -95,6 +95,8 @@ correct `label`. The 71 test tickets are never used for training, so their
 scores show how the model does on tickets it has not seen. (Real projects also
 keep a third set for tuning decisions — more on that in Lab 5.)
 
+![Training dataset](./images/ft-1-1.png?raw=true "Training dataset")
+
 <br><br>
 
 2. Open the Lab 1 skeleton file so you can see what you are about to build:
@@ -136,6 +138,9 @@ includes its correct category and priority (the answer key). STEP 2 counts them
 to show how balanced they are. That balance matters: if one category had 80% of
 the rows, the model would learn to guess that category for everything.
 
+
+![First steps output](./images/ft-1-5.png?raw=true "First steps output")
+
 <br><br>
 
 6. Look at **STEP 3**. The data file has no prompt or completion columns; this
@@ -154,6 +159,8 @@ Hi team, I cannot sign in to DriverPortal. It says my account is locked...
 grade it on the answer, not on copying the ticket back. Keeping the two parts
 separate is what lets Lab 3 do that.
 
+![Step 3 output](./images/ft-1-6.png?raw=true "Step 3 output")
+
 <br><br>
 
 7. Look at **STEP 4**: the same ticket in a chat model's format, wrapped in
@@ -161,6 +168,8 @@ special markers like `<|im_start|>`. Each family of chat models uses its own
 markers. Let the model's tokenizer (the tool that turns text into tokens) add
 them for you with `apply_chat_template()` —
 the wrong markers don't cause an error, just quietly worse answers.
+
+![Output with markers](./images/ft-1-7.png?raw=true "Output with markers")
 
 <br><br>
 
