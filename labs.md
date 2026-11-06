@@ -1,6 +1,6 @@
 # Fine-Tuning Small AI Models: LoRA, QLoRA & Evaluation
 
-## Revision 1.10 - 11/06/26
+## Revision 1.11 - 11/06/26
 
 **Workshop labs**
 
@@ -162,7 +162,7 @@ ordinary CPU; longer text gets slow very quickly.
 
 9. Now the important part — **STEP 7 and STEP 8**. STEP 7 gives distilgpt2 20
 tickets from the test set with just the bare ticket prompt, and prints the first
-3. Compare each `EXPECTED` line (the correct answer) with the `PREDICTED` line
+three. Compare each `EXPECTED` line (the correct answer) with the `PREDICTED` line
 (what the model wrote). STEP 8 scores all 20, then prints what random guessing
 would score, on average:
 
