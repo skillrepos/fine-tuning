@@ -1,28 +1,9 @@
 # Fine-Tuning Small AI Models: LoRA, QLoRA & Evaluation
 
-## Revision 1.8 - 11/05/26
+## Revision 1.9 - 11/06/26
 
-**Workshop labs — 5 labs, 10-12 minutes each**
+**Workshop labs**
 
-Everything in these labs runs on a **CPU-only, 4-vCPU GitHub Codespace**. No GPU,
-no paid accounts, no API keys. Every model and dataset is public and free.
-
-*(One exception: Lab 5 has a clearly-marked **optional** final step that compares
-your fine-tuned model against a 120B hosted model on Groq. It needs a free Groq
-API key — see "Optional: a free Groq API key" in `README.md` — and skips cleanly
-without one. Nothing else in the workshop touches it.)*
-
-**Not using the Codespace?** If you set up your own Mac or Windows machine with
-`Local_Setup_Mac.md` or `Local_Setup_Windows.md`, keep that guide's **"What is
-different from the Codespace"** section open alongside this document.
-
-**Before Lab 1**, make sure your Codespace has finished building. You should see
-a line like `>>> Model prefetch complete.` near the end of the terminal output.
-If your terminal prompt does not start with `(.venv)`, run:
-
-```
-source .venv/bin/activate
-```
 
 **A note on the diff-merge steps.** Several steps use
 `code -d <completed file> <your file>` to open VS Code's side-by-side diff view.
@@ -82,8 +63,8 @@ beats writing a clever prompt.
 
 <br><br>
 
-1. Open a terminal in your Codespace (`Ctrl+Shift+` `` ` ``) and make sure you
-are at the repository root. Then look at the raw data:
+1. Go to a terminal in your Codespace and make sure you
+are at the repository root (/workspaces/fine-tuning). Then look at the raw data:
 
 ```
 head -3 data/tickets_train.jsonl
@@ -111,7 +92,7 @@ won't do anything useful until you merge in the finished code in the next step.
 <br><br>
 
 3. Open the diff view against the completed version and merge **every**
-highlighted block from left to right, then save:
+highlighted block from left to right, then close the diff tab to save the changes:
 
 ```
 code -d extra/lab1_prep_complete.txt finetune/lab1_prep.py
@@ -127,8 +108,7 @@ code -d extra/lab1_prep_complete.txt finetune/lab1_prep.py
 python finetune/lab1_prep.py
 ```
 
-This takes about 25-40 seconds, mostly in STEP 7, where the model writes its
-guesses. Warnings about `loss_type` or pad tokens are harmless.
+This can take a bit to run. The output is formatted as *STEP* sections which we'll look at more closely in the following lab steps. Warnings about `loss_type` or pad tokens are harmless.
 
 <br><br>
 
@@ -165,9 +145,8 @@ separate is what lets Lab 3 do that.
 
 7. Look at **STEP 4**: the same ticket in a chat model's format, wrapped in
 special markers like `<|im_start|>`. Each family of chat models uses its own
-markers. Let the model's tokenizer (the tool that turns text into tokens) add
-them for you with `apply_chat_template()` —
-the wrong markers don't cause an error, just quietly worse answers.
+markers. The code lets the model's tokenizer (the tool that turns text into tokens) add
+them for you with `apply_chat_template()`. (Note: The wrong markers don't cause an error, just quietly worse answers.)
 
 ![Output with markers](./images/ft-1-7.png?raw=true "Output with markers")
 
