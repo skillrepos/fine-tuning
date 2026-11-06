@@ -101,7 +101,7 @@ print("STEP 4: Add the LoRA adapters")
 print("=" * 70)
 
 peft_model = get_peft_model(model, peft_config)
-peft_model.print_trainable_parameters()
+param_report(peft_model, "SmolLM2-360M with LoRA adapters")
 
 print("""
   That percentage is how much of the model will actually be trained. The

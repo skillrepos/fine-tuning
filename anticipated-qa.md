@@ -180,11 +180,11 @@ weight into magnitude and direction and applies the low-rank update only to the
 direction. At r=16 on an easy task the difference will be small or lost in noise.
 Cost is a bit more time per step and a few more parameters.
 
-**Q: My trainable% came out much lower than yours. Why?**
+**Q: My trainable share (STEP 4's percentage) came out much lower than yours. Why?**
 A: Almost certainly your `target_modules` matched fewer layers than you intended.
 That is the classic LoRA failure and it fails quietly — training runs happily and
-nothing improves. Print the module names (Lab 3 Step 2) and check the count in
-`print_trainable_parameters()`.
+nothing improves. Print the module names (Lab 3 Step 2) and check the count STEP 4
+prints.
 
 **Q: Can I fine-tune on top of an already fine-tuned model?**
 A: Yes. Either merge the first adapter and train a new one on the merged model, or

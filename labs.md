@@ -403,8 +403,8 @@ miss layers.
 - **`lora_alpha`** — how strongly the adapter's adjustments count. The usual
   rule is twice `r` (here 16 and 32).
 
-Then find the line STEP 4 prints: `trainable%: 2.34` or close to it. That is
-how much of the model will be trained. Lab 2 trained 100%. (STEP 1 also shows
+Then find the line STEP 4 prints, ending in `(2.3437%)` or close to it. That
+is how much of the model will be trained. Lab 2 trained 100%. (STEP 1 also shows
 100%, because that is before the adapters are added.)
 
 ![Lab 3 trainable parameter percentage](./images/ft-lab3-trainable.png?raw=true "LoRA trains about 2% of the parameters")
@@ -483,7 +483,7 @@ goal is to fit a bigger model into the memory you have.
 
 **Read this before you run it.** This lab shows *how* QLoRA works and how much
 memory it saves — not how good its results are. It trains for only **4 steps**,
-because on a CPU the 4-bit math is very slow: about 20 times slower per example
+because on a CPU the 4-bit math is very slow: about 20-30 times slower per example
 than Lab 3. (On a GPU the slowdown is much smaller.) **QLoRA saves memory, not
 time.**
 
@@ -626,7 +626,9 @@ lm_eval run --model hf \
   --output_path out/harness-base
 ```
 
-Warnings about the number of "few-shot" examples are harmless.
+The tool prints a lot of technical detail, including warnings about "few-shot"
+examples (sample questions it can show before each one). You can ignore them;
+the Lab 5 script reads the results for you.
 
 <br><br>
 
@@ -679,7 +681,7 @@ run                                      format  category  priority   queue     
 -------------------------------------------------------------------------------------------------
 Lab 1  bare prompt distilgpt2  82M        0.0%     0.0%     0.0%   0.0%       -      -      -
 Lab 1  best prompt SmolLM2  360M        100.0%    30.0%    45.0%  45.0%       -      -      -
-Lab 2  full FT     distilgpt2  82M        ...      ...      ...    ...      ...     72    ...
+Lab 2  retrain all distilgpt2  82M        ...      ...      ...    ...      ...     72    ...
 Lab 3  LoRA        SmolLM2  360M          ...      ...      ...    ...      ...     24    ...
 Lab 4  QLoRA test  SmolLM2  360M          ...      ...      ...    ...      ...      4    ...
   (random guessing, on average: category 12.5%, priority 25.0%, queue 16.7%)

@@ -32,7 +32,8 @@ from peft import LoraConfig, PeftModel, get_peft_model, prepare_model_for_kbit_t
 
 from common.triage import (
     load_tickets, build_prompt, generate_predictions,
-    score, print_scores, save_result, model_size_mb, plain_progress, OUT_DIR,
+    score, print_scores, save_result, model_size_mb, plain_progress, param_report,
+    OUT_DIR,
 )
 
 BASE_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"   # same model as Lab 3
@@ -109,13 +110,13 @@ print("STEP 3: Look inside one 4-bit layer")
 print("=" * 70)
 
 layer = model.model.layers[0].self_attn.q_proj
-print(f"\n  layer type        : {type(layer).__name__}")
-print(f"  stored as         : {layer.weight.dtype} (whole bytes), shape {tuple(layer.weight.shape)}")
+print(f"\n  layer type        : {type(layer).__name__}  (a 4-bit layer)")
+print(f"  stored as         : whole bytes, {layer.weight.shape[0]:,} rows x {layer.weight.shape[1]} column")
 print(f"  4-bit format      : {layer.weight.quant_state.quant_type}")
 print(f"  numbers per group : {layer.weight.quant_state.blocksize}")
 print("""
-  Two 4-bit numbers are packed into each byte, which is why the shape looks
-  squashed into one column. The numbers are kept in groups of 64, each with
+  Two 4-bit numbers are packed into each byte, which is why the layer is
+  stored as one long column. The numbers are kept in groups of 64, each with
   its own scale, so one unusually large number can't throw off all the rest.
   The "nf4" format places its 16 possible values where a trained model's
   numbers actually tend to fall.
@@ -146,7 +147,7 @@ peft_config = LoraConfig(
 print("\n  Same LoRA settings as Lab 3. The only change: the model underneath is 4-bit.")
 
 model = get_peft_model(model, peft_config)
-model.print_trainable_parameters()
+param_report(model, "SmolLM2-360M, 4-bit, with LoRA adapters")
 
 
 # ==========================================================================
@@ -278,7 +279,7 @@ base = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.bfloat16)
 #         so it becomes one ordinary model again.
 merged = base
 
-print(f"  model type after folding in : {type(merged).__name__}")
+print(f"  adapter wrapper still on    : {'yes' if type(merged).__name__.startswith('Peft') else 'no'}")
 lora_left = [n for n, _ in merged.named_modules() if "lora" in n.lower()]
 print(f"  separate adapter pieces left: {len(lora_left)}")
 

@@ -48,7 +48,7 @@ ORDER = ["baseline_distilgpt2", "bestprompt_smollm2", "fullft_distilgpt2",
 LABEL = {
     "baseline_distilgpt2": "Lab 1  bare prompt distilgpt2  82M",
     "bestprompt_smollm2":  "Lab 1  best prompt SmolLM2  360M",
-    "fullft_distilgpt2":   "Lab 2  full FT     distilgpt2  82M",
+    "fullft_distilgpt2":   "Lab 2  retrain all distilgpt2  82M",
     "lora_smollm2":        "Lab 3  LoRA        SmolLM2  360M",
     "qlora_smollm2":       "Lab 4  QLoRA test  SmolLM2  360M",
 }
@@ -140,14 +140,14 @@ for pred, row in zip(preds, eval_rows):
     #         the prediction matches, otherwise record the mix-up pair.
     per[row["category"]][1] += 1
 
-print(f"\n  {'true category':24s} {'correct':>9s} {'n':>4s}")
-print("  " + "-" * 40)
+print(f"\n  {'right category':24s} {'correct':>9s} {'tickets':>8s}")
+print("  " + "-" * 44)
 for cat in sorted(per):
     ok, n = per[cat]
-    print(f"  {cat:24s} {ok:9d} {n:4d}")
+    print(f"  {cat:24s} {ok:9d} {n:8d}")
 
 if confusions:
-    print("\n  Most common confusions (true -> predicted):")
+    print("\n  Most common mix-ups (right category -> model's answer):")
     for (t, g), c in confusions.most_common(5):
         print(f"    {t:24s} -> {g:24s} x{c}")
 
@@ -169,7 +169,8 @@ print("=" * 78)
 shown = 0
 for pred, row in zip(preds, eval_rows):
     if pred != row["label"] and shown < 4:
-        print(f"\n  TICKET   : {row['ticket'][:100]}")
+        more = "..." if len(row["ticket"]) > 100 else ""
+        print(f"\n  TICKET   : {row['ticket'][:100]}{more}")
         print(f"  EXPECTED : {row['label']}")
         print(f"  PREDICTED: {pred!r}")
         shown += 1
@@ -311,7 +312,7 @@ else:
                  the model THIS STEP used to call, llama-3.3-70b-versatile,
                  was switched off by Groq on 2026-08-16, and the step broke
                  until someone changed one line. Your Lab 3 adapter still runs.
-    Reliability -- a prompt only asks the model to behave a certain way;
+    Behavior  -- a prompt only asks the model to behave a certain way;
                  training changes the model itself.
 
   If the big model wins on the scores here, the honest conclusion is: this
@@ -332,10 +333,10 @@ print("""
   You now have the evidence to answer five separate questions:
 
     Does fine-tuning help this task?      -> best-prompt row vs. trained rows
-    Do we need full fine-tuning?          -> Lab 2 vs. Lab 3 quality per MB
-    Do we need a bigger model?            -> category accuracy across sizes
+    Do we need full fine-tuning?          -> Lab 2 vs. Lab 3: scores and file size
+    Do we need a bigger model?            -> category scores by model size
     Did we break anything?                -> the quiz changes in Step 5
-    Should we have just used an API?      -> the Step 6 head-to-head
+    Should we just use a hosted model?    -> the Step 6 comparison
 
   That is the whole job. Everything else is adjusting settings.
 """)

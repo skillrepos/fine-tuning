@@ -348,9 +348,15 @@ def save_result(key, scores, extra=None):
 # --------------------------------------------------------------------------
 
 def param_report(model, label="model"):
-    """Print total vs. trainable parameter counts -- the LoRA money shot."""
-    total = sum(p.numel() for p in model.parameters())
-    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    """Print how many of the model's numbers can be trained, out of the total."""
+    def count(p):
+        n = p.numel()
+        # A 4-bit layer packs two numbers into each stored byte, so count both.
+        if p.__class__.__name__ == "Params4bit":
+            n *= 2 * getattr(getattr(p, "quant_storage", None), "itemsize", 1)
+        return n
+    total = sum(count(p) for p in model.parameters())
+    trainable = sum(count(p) for p in model.parameters() if p.requires_grad)
     print(f"\n  {label}: {trainable:,} of {total:,} numbers can be trained "
           f"({100 * trainable / total:.4f}%)")
     return trainable, total
