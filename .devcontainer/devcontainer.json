@@ -35,8 +35,7 @@
                 }
             },
             "extensions": [
-                "ms-python.python",
-                "vstirbu.vscode-mermaid-preview"
+                "ms-python.python"
             ]
         }
     },
