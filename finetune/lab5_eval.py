@@ -73,7 +73,7 @@ print("""
 
   Read the columns, not just the last row.
 
-  schema   -- can the model produce the SHAPE we require at all?
+  format   -- can the model produce the SHAPE we require at all?
   category -- does it understand the ticket?
   MB       -- what do we have to store and ship per fine-tuned variant?
   steps    -- how much supervision did it actually see?
@@ -269,8 +269,8 @@ if groq_preds is None:
   Skipped -- no GROQ_API_KEY in the environment.
 
   This step is entirely optional and nothing else depends on it. If you have a
-  free Groq account, add GROQ_API_KEY as a Codespaces secret, restart the
-  Codespace, and rerun. Everything else in this workshop needs no accounts.
+  free Groq account, set your key with scripts/setup-key.sh (see README.md)
+  and rerun. Everything else in this workshop needs no accounts.
 """)
 else:
     gs = score(groq_preds, eval_rows)

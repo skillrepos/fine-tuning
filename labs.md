@@ -229,7 +229,8 @@ whether training beats the best prompt, and by how much.
 12. **Optional (about 4 minutes).** Change `N_EVAL = 20` near the top of
 `finetune/lab1_prep.py` to `40` and rerun. The run takes about twice as long and
 the scores shift a little: more test tickets give a more reliable score, at the
-cost of time. Put it back to `20` before you move on.
+cost of time. Put it back to `20` and run it once more, so Lab 5 compares
+20-ticket scores.
 
 <p align="center">**[END OF LAB]**</p></br></br>
 
@@ -699,7 +700,7 @@ our run, no row beat its 45% on priority.)
 The last row (Lab 4) trained for only 4 steps, so its low scores show what too little
 training does — not what 4-bit costs in quality.
 
-![Lab 5 comparison table](./images/ft-lab5-table.png?raw=true "Comparison table across all four runs")
+![Lab 5 comparison table](./images/ft-lab5-table.png?raw=true "Comparison table across every run")
 
 <br><br>
 
@@ -721,8 +722,8 @@ different problems with different fixes.
 ```
   task                   base   +adapter      delta
   --------------------------------------------------
-  arc_easy              0.400      0.450     +0.050
   arc_challenge         0.250      0.250     +0.000
+  arc_easy              0.250      0.300     +0.050
 ```
 
 Your adapter made the model good at ticket triage; this checks what that cost on
