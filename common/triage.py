@@ -57,8 +57,10 @@ QUEUES = [
 PROMPT_TEMPLATE = "### Ticket:\n{ticket}\n\n### Triage:\n"
 
 # The best prompt we can write for a model we are NOT fine-tuning: it lists
-# every category, priority and queue, and the exact answer format. Lab 5 uses
-# it to give a large hosted model its fairest possible shot at the task.
+# every category, priority and queue, and the exact answer format. Lab 1 gives
+# it (plus one worked example per category) to SmolLM2 before any training;
+# Lab 5 gives it to a large hosted model. Both are the fairest shot a prompt
+# can get.
 ZERO_SHOT_SYSTEM = f"""You are a support ticket triage system for Northwind Logistics.
 
 Read the ticket and reply with EXACTLY ONE LINE in this format, nothing else:
@@ -86,6 +88,14 @@ SCHEMA_RE = re.compile(
     r"priority:\s*(?P<priority>P[1-4])\s*\|\s*"
     r"queue:\s*(?P<queue>[a-z-]+)\s*$"
 )
+
+# What you would score by picking a category, priority and queue at random,
+# on average: 1 in 8, 1 in 4 and 1 in 6. Any model worth using should beat it.
+RANDOM_GUESS = {
+    "category_acc": 1 / len(CATEGORIES),
+    "priority_acc": 1 / len(PRIORITIES),
+    "queue_acc": 1 / len(QUEUES),
+}
 
 
 def build_prompt(ticket: str) -> str:
@@ -162,30 +172,137 @@ def generate_predictions(model, tokenizer, rows, max_new_tokens=24, show=0):
     return preds
 
 
+def pick_examples(train_rows, k=3):
+    """Pick k worked examples from the training data, each from a different category."""
+    examples, seen = [], set()
+    for row in train_rows:
+        if len(examples) >= k:
+            break
+        if row["category"] not in seen:
+            examples.append(row)
+            seen.add(row["category"])
+    return examples
+
+
+def best_prompt_messages(ticket, examples):
+    """The best prompt we can give a chat model without training it.
+
+    The full instructions (ZERO_SHOT_SYSTEM), then each worked example as a
+    ticket and its correct answer, then the new ticket.
+    """
+    messages = [{"role": "system", "content": ZERO_SHOT_SYSTEM}]
+    for ex in examples:
+        messages.append({"role": "user", "content": ex["ticket"]})
+        messages.append({"role": "assistant", "content": ex["label"]})
+    messages.append({"role": "user", "content": ticket})
+    return messages
+
+
+def best_prompt_predictions(model, tokenizer, rows, examples, max_new_tokens=40, show=0):
+    """Answers from an untrained chat model, given the best prompt we can write.
+
+    Unlike generate_predictions(), this keeps the whole answer, not just the
+    first line, so an answer spread over several lines can still earn credit
+    for the parts it gets right.
+    """
+    model.eval()
+    preds = []
+    start = time.time()
+    for i, row in enumerate(rows):
+        text = tokenizer.apply_chat_template(
+            best_prompt_messages(row["ticket"], examples),
+            tokenize=False, add_generation_prompt=True,
+        )
+        inputs = tokenizer(text, return_tensors="pt")
+        with torch.no_grad():
+            out = model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                do_sample=False,
+                eos_token_id=tokenizer.eos_token_id,
+                pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
+            )
+        pred = tokenizer.decode(out[0][inputs["input_ids"].shape[1]:],
+                                skip_special_tokens=True).strip()
+        preds.append(pred)
+        if i < show:
+            print(f"\n  TICKET   : {row['ticket'][:90]}...")
+            print(f"  EXPECTED : {row['label']}")
+            print(f"  PREDICTED: {pred!r}")
+    print(f"\n  ({len(rows)} predictions in {time.time() - start:.1f}s, "
+          f"prompt about {inputs['input_ids'].shape[1]} tokens each)")
+    return preds
+
+
 # --------------------------------------------------------------------------
 # Scoring
 # --------------------------------------------------------------------------
+
+def _find_label(text, field, choices):
+    """Find the value the answer gives for one field (category, priority, queue).
+
+    First look for the field written with its name, like "Category: billing"
+    -- in any case, on any line, in any order. A shortened name counts if it
+    can only mean one choice ("billing" -> "billing-inquiry"). If the field
+    name is missing, take the first exact choice that appears anywhere.
+    Returns None when the answer gives no usable value.
+    """
+    def norm(s):
+        return re.sub(r"[\s_]+", "-", s.strip().lower())
+
+    m = re.search(rf"{field}\s*[:=]\s*([A-Za-z0-9_ -]+)", text, re.IGNORECASE)
+    if m:
+        given = norm(m.group(1))
+        for c in choices:
+            if given == c.lower() or given.startswith(c.lower() + "-"):
+                return c
+        starts = [c for c in choices if c.lower().startswith(given)]
+        if given and len(starts) == 1:
+            return starts[0]
+
+    flat = norm(text)
+    hits = []
+    for c in choices:
+        m = re.search(rf"(?<![a-z0-9]){re.escape(c.lower())}(?![a-z0-9])", flat)
+        if m:
+            hits.append((m.start(), c))
+    return min(hits)[1] if hits else None
+
+
+def extract_fields(pred):
+    """Pull category, priority and queue out of an answer, even a messy one."""
+    m = SCHEMA_RE.match(pred.strip().split("\n")[0].strip())
+    if (m and m.group("category") in CATEGORIES
+            and m.group("queue") in QUEUES):
+        return m.groupdict()
+    return {
+        "category": _find_label(pred, "category", CATEGORIES),
+        "priority": _find_label(pred, "priority", PRIORITIES),
+        "queue": _find_label(pred, "queue", QUEUES),
+    }
+
 
 def score(preds, rows):
     """Score predictions against the gold labels.
 
     Returns a dict with four fractions (printed with the plain labels below):
-      schema_valid  -- "right format": the answer is one line in the exact form
+      schema_valid  -- "right format": the first line is exactly
+                       category: ... | priority: ... | queue: ...
       category_acc  -- "category correct"
       priority_acc  -- "priority correct"
       queue_acc     -- "queue correct"
-    An answer that is not in the right format gets no credit for any part.
+    The three "correct" scores do NOT require the right format. If the answer
+    says "Category: billing-inquiry" on its own line, or in another order, the
+    category still counts. Format is scored separately, by schema_valid.
     """
     n = len(rows)
     valid = cat = pri = que = 0
     for pred, row in zip(preds, rows):
-        m = SCHEMA_RE.match(pred)
-        if not m:
-            continue
-        valid += 1
-        cat += int(m.group("category") == row["category"])
-        pri += int(m.group("priority") == row["priority"])
-        que += int(m.group("queue") == row["queue"])
+        valid += int(bool(SCHEMA_RE.match(pred.strip().split("\n")[0].strip())))
+        got = extract_fields(pred)
+        cat += int(got["category"] == row["category"])
+        pri += int(got["priority"] == row["priority"])
+        que += int(got["queue"] == row["queue"])
     return {
         "n": n,
         "schema_valid": valid / n,
@@ -201,6 +318,15 @@ def print_scores(name, s):
     print(f"    category correct : {s['category_acc']:6.1%}")
     print(f"    priority correct : {s['priority_acc']:6.1%}")
     print(f"    queue correct    : {s['queue_acc']:6.1%}")
+
+
+def print_random_guess():
+    """Print the random-guessing scores in the same layout as print_scores."""
+    print("\n  === RANDOM GUESSING (average, no model at all) ===")
+    print("    right format     :      -")
+    print(f"    category correct : {RANDOM_GUESS['category_acc']:6.1%}")
+    print(f"    priority correct : {RANDOM_GUESS['priority_acc']:6.1%}")
+    print(f"    queue correct    : {RANDOM_GUESS['queue_acc']:6.1%}")
 
 
 def save_result(key, scores, extra=None):

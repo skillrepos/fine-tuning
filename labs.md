@@ -1,6 +1,6 @@
 # Fine-Tuning Small AI Models: LoRA, QLoRA & Evaluation
 
-## Revision 1.9 - 11/06/26
+## Revision 1.10 - 11/06/26
 
 **Workshop labs**
 
@@ -43,8 +43,9 @@ it open in a second tab if the vocabulary is new to you.
 
 **Purpose: Turn raw support tickets into training data in the format the
 training tools expect, see how a chat model wraps the same text, and measure
-how badly an untrained model does at the task. Every later lab is measured
-against the score you get here.**
+the best an untrained model can do — first with a bare prompt, then with the
+best prompt we can write. Every later lab is measured against that best-prompt
+score.**
 
 **Estimated time: 10-12 minutes**
 
@@ -58,8 +59,9 @@ category: access-management | priority: P2 | queue: identity-team
 ```
 
 Eight categories, four priorities, six queues. This labeling scheme is
-Northwind's own — no model has ever seen it — which is exactly when fine-tuning
-beats writing a clever prompt.
+Northwind's own — no model has ever seen it — which is the kind of task where
+fine-tuning can beat a clever prompt. This lab measures how far a clever prompt
+gets on its own.
 
 <br><br>
 
@@ -108,7 +110,7 @@ code -d extra/lab1_prep_complete.txt finetune/lab1_prep.py
 python finetune/lab1_prep.py
 ```
 
-This can take a bit to run. The output is formatted as *STEP* sections which we'll look at more closely in the following lab steps. Warnings about `loss_type` or pad tokens are harmless.
+This takes about 2 minutes. The output is formatted as *STEP* sections which we'll look at more closely in the following lab steps. Warnings about `loss_type` or pad tokens are harmless.
 
 <br><br>
 
@@ -158,10 +160,11 @@ ordinary CPU; longer text gets slow very quickly.
 
 <br><br>
 
-9. Now the important part — **STEP 7 and STEP 8**. STEP 7 gives the model 20
-tickets from the test set and prints the first 3. For each one, compare the
-`EXPECTED` line (the correct answer from the data) with the `PREDICTED` line
-(what the model wrote). Your scores should be:
+9. Now the important part — **STEP 7 and STEP 8**. STEP 7 gives distilgpt2 20
+tickets from the test set with just the bare ticket prompt, and prints the first
+3. Compare each `EXPECTED` line (the correct answer) with the `PREDICTED` line
+(what the model wrote). STEP 8 scores all 20, then prints what random guessing
+would score, on average:
 
 ```
   === BASELINE - distilgpt2, no training (n=20) ===
@@ -169,50 +172,64 @@ tickets from the test set and prints the first 3. For each one, compare the
     category correct :   0.0%
     priority correct :   0.0%
     queue correct    :   0.0%
+
+  === RANDOM GUESSING (average, no model at all) ===
+    right format     :      -
+    category correct :  12.5%
+    priority correct :  25.0%
+    queue correct    :  16.7%
 ```
 
-![Lab 1 baseline scores](./images/ft-lab1-baseline.png?raw=true "Baseline scores are zero across the board")
+![Lab 1 baseline scores](./images/ft-lab1-baseline.png?raw=true "Bare-prompt scores next to random guessing")
 
-**How the scores are measured.** Each of the 20 answers is checked in two
-stages:
+**How the scores are measured.** `right format` asks whether the answer's first
+line is exactly `category: ... | priority: ... | queue: ...`. The other three ask
+whether the answer names the right category, priority or queue anywhere, in any
+form — `Category: billing-inquiry` on its own line still counts. Each score is
+the share of the 20 answers that earned it.
 
-- **right format** asks: is the answer one line in exactly the form
-  `category: ... | priority: ... | queue: ...`?
-- **category correct**, **priority correct** and **queue correct** are then
-  checked only for answers in the right format: does that part match the `EXPECTED`
-  line? An answer in any other form gets no credit for any of the three, because
-  the script has no way to tell which words in a free-form sentence are meant as
-  the category, priority or queue.
-
-Each score is the number of answers that earned credit, divided by 20. Look at
-the sample predictions: the model just writes a sentence about the ticket, or
-repeats it. Not one of the 20 answers is in the right form, so `right format` is
-0 out of 20 — and that forces the other three to 0 as well.
-
-Why does it write sentences? distilgpt2 is a **base** model: it was only trained
-to continue text, never to follow instructions, so it just keeps writing from
-wherever the prompt stops. The SmolLM2-**Instruct** model in Lab 3 was also
-trained to follow instructions — keep that difference in mind when you compare
-labs.
+distilgpt2 is a **base** model: it was only trained to continue text, so it
+keeps writing sentences and never names a category. Scoring below random
+guessing just means nobody told it the task — so 0% is a poor bar to measure
+training against.
 
 <br><br>
 
-10. **Discussion — why not just write a better prompt?** You could list every
-category, priority and queue in the prompt. A large hosted model might follow
-it; an 82-million-parameter model can't follow a multi-part instruction
-reliably. And with any model, that long prompt is sent — and paid for — on every
-request. Fine-tuning builds the knowledge into the model instead: shorter
-prompts, faster and cheaper calls, and a model small enough to run where you
-need it.
+10. Look at **STEP 9**, the fair bar. It gives SmolLM2-360M-**Instruct** (the
+model Labs 3 and 4 train, built to follow instructions) the best prompt we could
+write: every category, priority and queue, the routing rules, the exact answer
+format, and eight worked examples (one ticket per category, with its correct
+answer). No training. The table at the end puts all three side by side:
 
-Keep the baseline in mind: everything from here is measured against zero.
+```
+  score                random  bare prompt  best prompt
+  ------------------------------------------------------
+  right format              -           0%         100%
+  category correct        12%           0%          30%
+  priority correct        25%           0%          45%
+  queue correct           17%           0%          45%
+```
+
+![Lab 1 best-prompt baseline](./images/ft-lab1-bestprompt.png?raw=true "Random guessing, bare prompt and best prompt side by side")
+
+The format is now perfect, but fewer than 1 category in 3 is right — the model
+answers `software-bug` for nearly half the tickets. **The best-prompt column is the score
+every later lab has to beat.**
 
 <br><br>
 
-11. **Optional (about 2 minutes).** Change `N_EVAL = 20` near the top of
-`finetune/lab1_prep.py` to `40` and rerun. Still zero, but it takes about twice
-as long: more test tickets give a more reliable score, at the cost of time. Put
-it back to `20` before you move on.
+11. **Discussion — then why fine-tune at all?** Look at the prompt size STEP 9
+printed: about 700 tokens, sent and paid for on every request, compared with
+about 50 for the bare prompt. Fine-tuning tries to build that knowledge into
+the model instead, so a short prompt is enough. The rest of the workshop asks
+whether training beats the best prompt, and by how much.
+
+<br><br>
+
+12. **Optional (about 4 minutes).** Change `N_EVAL = 20` near the top of
+`finetune/lab1_prep.py` to `40` and rerun. The run takes about twice as long and
+the scores shift a little: more test tickets give a more reliable score, at the
+cost of time. Put it back to `20` before you move on.
 
 <p align="center">**[END OF LAB]**</p></br></br>
 
@@ -663,10 +680,12 @@ python finetune/lab5_eval.py
 ```
 run                                      format  category  priority   queue      MB  steps    sec
 -------------------------------------------------------------------------------------------------
-Lab 1  baseline    distilgpt2  82M        0.0%     0.0%     0.0%   0.0%       -      -      -
+Lab 1  bare prompt distilgpt2  82M        0.0%     0.0%     0.0%   0.0%       -      -      -
+Lab 1  best prompt SmolLM2  360M        100.0%    30.0%    45.0%  45.0%       -      -      -
 Lab 2  full FT     distilgpt2  82M        ...      ...      ...    ...      ...     72    ...
 Lab 3  LoRA fp32   SmolLM2  360M          ...      ...      ...    ...      ...     24    ...
 Lab 4  QLoRA probe SmolLM2  360M          ...      ...      ...    ...      ...      4    ...
+  (random guessing, on average: category 12.5%, priority 25.0%, queue 16.7%)
 ```
 
 Read every column, not just one. `format`: does it answer in the right format?
@@ -674,7 +693,10 @@ Read every column, not just one. `format`: does it answer in the right format?
 `steps`: how much training did it get? `sec`: how long did training take? A
 single "accuracy" number would hide all of that.
 
-Row 4 (Lab 4) trained for only 4 steps, so its low scores show what too little
+Compare every trained row with the **best prompt** row, the score to beat. (In
+our run, no row beat its 45% on priority.)
+
+The last row (Lab 4) trained for only 4 steps, so its low scores show what too little
 training does — not what 4-bit costs in quality.
 
 ![Lab 5 comparison table](./images/ft-lab5-table.png?raw=true "Comparison table across all four runs")
@@ -747,7 +769,7 @@ big model wins, the task may not need fine-tuning at all — a useful finding.
 
 | Question | Where the answer is |
 |---|---|
-| Does fine-tuning help this task at all? | Lab 1 baseline vs. any trained row |
+| Does fine-tuning help this task at all? | the Lab 1 best-prompt row vs. the trained rows |
 | Do we need to retrain the *whole* model? | Lab 2 vs. Lab 3: results per MB and per second |
 | Do we need a bigger model? | category accuracy across the model sizes |
 | Did we break anything? | the STEP 5 before/after scores |
@@ -804,7 +826,7 @@ Plain-language versions of every training term used today.
 | **Quantization / NF4** | Storing a model's numbers in fewer bits to save memory. NF4 is the 4-bit format QLoRA uses. |
 | **Merge** | Folding an adapter back into the base weights to get one ordinary model. Always merge into a full-precision base. |
 | **Held-out / eval set** | Data the model never trained on. The only scores that count. |
-| **Baseline** | The untrained model's score — what every later run is measured against. Ours is 0%. |
+| **Baseline** | The best score you can get without training — what every later run is measured against. Ours is the Lab 1 best-prompt score. |
 | **Catastrophic forgetting** | Training hard on a narrow task degrading everything else the model could do. Lab 5's harness run is the check. |
 
 <br><br>

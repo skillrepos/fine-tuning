@@ -35,7 +35,7 @@
         "title": "Score the baseline",
         "note": [
           "**Grades the predictions on four separate checks: format, category, priority, queue.**",
-          "- This is the number every later lab must beat"
+          "- Format must be exact; the other three count the right answer in any form"
         ]
       }
     ],
@@ -231,7 +231,7 @@
         "title": "Score the baseline",
         "note": [
           "**Grades the predictions on four separate checks: format, category, priority, queue.**",
-          "- This is the number every later lab must beat"
+          "- Format must be exact; the other three count the right answer in any form"
         ],
         "lines": 2
       }

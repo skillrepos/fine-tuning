@@ -3,8 +3,8 @@ Lab 1 - Dataset preparation and baseline evaluation.
 
 Before you train anything, you need two things:
   1. The data, in the exact form the training code expects.
-  2. A starting score (the baseline), so you can prove later that
-     training helped.
+  2. A score to beat (the baseline): the best result you can get
+     WITHOUT training, so you can prove later that training helped.
 
 This script does both.
 """
@@ -18,10 +18,12 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from common.triage import (
     load_tickets, to_prompt_completion, build_prompt,
     generate_predictions, score, print_scores, save_result,
+    print_random_guess, pick_examples, best_prompt_predictions,
     CATEGORIES, PRIORITIES, QUEUES,
 )
 
 BASE_MODEL = "distilgpt2"
+CHAT_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"   # the model Labs 3 and 4 train
 N_EVAL = 20          # keep the baseline quick -- 20 tickets is plenty to see the problem
 
 
@@ -90,7 +92,7 @@ print("\n" + "=" * 70)
 print("STEP 4: What a chat template does to the same example")
 print("=" * 70)
 
-chat_tok = AutoTokenizer.from_pretrained("HuggingFaceTB/SmolLM2-360M-Instruct")
+chat_tok = AutoTokenizer.from_pretrained(CHAT_MODEL)
 messages = [
     {"role": "system", "content": "You are a support ticket triage assistant."},
     {"role": "user", "content": build_prompt(ds["train"][0]["ticket"])},
@@ -161,18 +163,54 @@ print("=" * 70)
 s = None
 print_scores("BASELINE - distilgpt2, no training", s)
 save_result("baseline_distilgpt2", s, {"model": BASE_MODEL, "trained": False})
+print_random_guess()
 
 print(f"""
   How these were measured: each of the {s['n']} answers is compared with its
   EXPECTED line.
-    right format -- is the answer one line in exactly this form?
+    right format -- is the first line exactly in this form?
                     category: ... | priority: ... | queue: ...
-    category / priority / queue correct -- for answers in that form only,
-                    is that part the same as the expected one?
-  An answer in any other form gets no credit for any part. Look at the
-  PREDICTED lines above: the model just keeps writing sentences, so none are
-  in the right form -- and all four scores are 0%.
+    category / priority / queue correct -- does the answer name the right
+                    one anywhere, in any form? ("Category: billing" on its
+                    own line still counts.)
 
-  This is the number every later lab has to beat. Fine-tuning is what teaches
-  the model to answer in this form at all.
+  Look at the PREDICTED lines above: distilgpt2 just keeps writing sentences
+  and never names a category, priority or queue -- so it scores BELOW random
+  guessing. That does not mean the model is hopeless. It means nobody told it
+  what the task is. A bare prompt is not a fair starting point, so next we
+  give a model the best prompt we can write.
+""")
+
+
+# ==========================================================================
+# STEP 9 - The real score to beat: an untrained model with the best prompt
+# ==========================================================================
+print("\n" + "=" * 70)
+print(f"STEP 9: Best prompt, no training -- {CHAT_MODEL.split('/')[-1]}")
+print("=" * 70)
+
+chat_model = AutoModelForCausalLM.from_pretrained(CHAT_MODEL, dtype=torch.float32)
+examples = pick_examples(ds["train"], k=len(CATEGORIES))
+print("\n  Prompt = full instructions (every category, priority, queue and the")
+print(f"  routing rules) + {len(examples)} worked examples, one ticket per category,")
+print("  each with its correct answer.")
+
+best_preds = best_prompt_predictions(chat_model, chat_tok, eval_rows, examples, show=3)
+best = score(best_preds, eval_rows)
+print_scores("BEST PROMPT - SmolLM2-360M-Instruct, no training", best)
+save_result("bestprompt_smollm2", best, {"model": CHAT_MODEL, "trained": False,
+                                         "method": "best prompt"})
+
+print(f"""
+  {'score':18s} {'random':>8s} {'bare prompt':>12s} {'best prompt':>12s}
+  {'-' * 54}
+  {'right format':18s} {'-':>8s} {s['schema_valid']:12.0%} {best['schema_valid']:12.0%}
+  {'category correct':18s} {1/len(CATEGORIES):8.0%} {s['category_acc']:12.0%} {best['category_acc']:12.0%}
+  {'priority correct':18s} {1/len(PRIORITIES):8.0%} {s['priority_acc']:12.0%} {best['priority_acc']:12.0%}
+  {'queue correct':18s} {1/len(QUEUES):8.0%} {s['queue_acc']:12.0%} {best['queue_acc']:12.0%}
+
+  The best-prompt column is the number every later lab has to beat. It is
+  the best we can do without training -- and it costs a prompt of several
+  hundred tokens on every single request. If training cannot clearly beat
+  it, think hard about whether training is worth it.
 """)

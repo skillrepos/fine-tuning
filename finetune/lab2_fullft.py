@@ -197,7 +197,7 @@ save_result("fullft_distilgpt2", s, {
 })
 
 print("""
-  Compare against the Lab 1 baseline.
+  Compare with Lab 1's best-prompt score -- the score to beat.
 
   Expect "right format" to jump dramatically -- the model learned the form
   of the answer almost immediately. "category correct" will be much weaker.

@@ -23,7 +23,8 @@ from peft import PeftModel
 
 from common.triage import (
     load_tickets, generate_predictions, groq_predictions,
-    score, print_scores, save_result, SCHEMA_RE, OUT_DIR, FRONTIER_MODEL,
+    score, print_scores, save_result, extract_fields, OUT_DIR, FRONTIER_MODEL,
+    RANDOM_GUESS,
 )
 
 LORA_DIR = os.path.join(OUT_DIR, "smollm2-lora")
@@ -41,9 +42,11 @@ print("=" * 78)
 with open(os.path.join(OUT_DIR, "results.json")) as f:
     results = json.load(f)
 
-ORDER = ["baseline_distilgpt2", "fullft_distilgpt2", "lora_smollm2", "qlora_smollm2"]
+ORDER = ["baseline_distilgpt2", "bestprompt_smollm2", "fullft_distilgpt2",
+         "lora_smollm2", "qlora_smollm2"]
 LABEL = {
-    "baseline_distilgpt2": "Lab 1  baseline    distilgpt2  82M",
+    "baseline_distilgpt2": "Lab 1  bare prompt distilgpt2  82M",
+    "bestprompt_smollm2":  "Lab 1  best prompt SmolLM2  360M",
     "fullft_distilgpt2":   "Lab 2  full FT     distilgpt2  82M",
     "lora_smollm2":        "Lab 3  LoRA fp32   SmolLM2  360M",
     "qlora_smollm2":       "Lab 4  QLoRA probe SmolLM2  360M",
@@ -63,7 +66,12 @@ for key in ORDER:
           f"{r.get('artifact_mb', '-'):>7} {r.get('steps', '-'):>6} "
           f"{r.get('train_seconds', '-'):>6}")
 
+print(f"  (random guessing, on average: category {RANDOM_GUESS['category_acc']:.1%}, "
+      f"priority {RANDOM_GUESS['priority_acc']:.1%}, queue {RANDOM_GUESS['queue_acc']:.1%})")
+
 print("""
+  The row to beat is "best prompt": the best SmolLM2 did with no training.
+
   Read the columns, not just the last row.
 
   schema   -- can the model produce the SHAPE we require at all?
@@ -74,11 +82,11 @@ print("""
 
   A single "accuracy" number would have hidden every one of those trade-offs.
 
-  Now read rows 3 and 4 with the steps column in view. Lab 4 is a 4-step
+  Now read the last two rows with the steps column in view. Lab 4 is a 4-step
   MECHANICS probe, not a quality run -- on CPU a like-for-like 24-step 4-bit
   run measures over an hour. So this table does NOT tell you what quantization
   costs in accuracy. It tells you something else worth just as much: the gap
-  between rows 3 and 4 is almost entirely a STEP COUNT gap, which is the
+  between the last two rows is almost entirely a STEP COUNT gap, which is the
   single most common reason a real fine-tune underperforms.
 
   The quantization-quality question is answered in the literature (QLoRA
@@ -126,8 +134,7 @@ print("=" * 78)
 per = defaultdict(lambda: [0, 0])
 confusions = Counter()
 for pred, row in zip(preds, eval_rows):
-    m = SCHEMA_RE.match(pred)
-    got = m.group("category") if m else "<invalid>"
+    got = extract_fields(pred)["category"] or "<none given>"
     per[row["category"]][1] += 1
     if got == row["category"]:
         per[row["category"]][0] += 1
@@ -320,7 +327,7 @@ print("=" * 78)
 print("""
   You now have the evidence to answer five separate questions:
 
-    Does fine-tuning help this task?      -> baseline vs. any trained row
+    Does fine-tuning help this task?      -> best-prompt row vs. trained rows
     Do we need full fine-tuning?          -> Lab 2 vs. Lab 3 quality per MB
     Do we need a bigger model?            -> category accuracy across sizes
     Did we break anything?                -> the harness deltas
