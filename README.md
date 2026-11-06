@@ -4,23 +4,23 @@
 Tech Skills Transformations LLC · Brent C. Laster
 
 Pre-trained models are powerful generalists, but most enterprise use cases demand
-domain-specific behavior: internal terminology, company style guides, proprietary
-classification schemas, or regulatory language. This workshop teaches the complete
-fine-tuning workflow — dataset preparation, training, and systematic evaluation —
+behavior specific to your business: internal terms, company style guides, your
+own labeling schemes, or regulatory wording. This workshop teaches the complete
+fine-tuning workflow — preparing the data, training, and checking the results —
 using models small enough to train in minutes on a **CPU-only GitHub Codespace**.
 
 ## What you will build
 
 Five labs, 10-12 minutes each, all on the same running task: turning free-text
-support tickets into a strict proprietary schema.
+support tickets into one strict line in a made-up company's own format.
 
 | Lab | Topic | Model | Method |
 |-----|-------|-------|--------|
-| 1 | Dataset curation, chat templates, baseline evaluation | distilgpt2 (82M) | none |
+| 1 | Prepare the data, chat templates, score with no training | distilgpt2 (82M) + SmolLM2-360M | none |
 | 2 | Full fine-tuning with the Hugging Face `Trainer` | distilgpt2 (82M) | all parameters |
-| 3 | LoRA with PEFT + the Hugging Face `Trainer` | SmolLM2-360M-Instruct | LoRA (~2.3% of params) |
-| 4 | QLoRA (4-bit NF4), adapter merge and export | SmolLM2-360M + TinyLlama-1.1B | QLoRA |
-| 5 | lm-evaluation-harness, task metrics, regression check, optional frontier comparison | all of the above | evaluation |
+| 3 | LoRA with PEFT + the Hugging Face `Trainer` | SmolLM2-360M-Instruct | LoRA (trains ~2.3% of the model) |
+| 4 | QLoRA (model stored in 4 bits), fold the adapter in and save | SmolLM2-360M + TinyLlama-1.1B | QLoRA |
+| 5 | Compare every run, check general skills with standard quizzes, optional comparison with a huge online model | all of the above | evaluation |
 
 ## Prerequisites
 
@@ -237,7 +237,7 @@ requirements.txt        Python dependencies
 
 Open `labs.md` and follow it top to bottom.
 
-Artifacts land in `out/` (it is not tracked in git). To start over from scratch:
+Everything the labs save goes in `out/` (it is not tracked in git). To start over from scratch:
 
 ```
 rm -rf out/
@@ -268,7 +268,7 @@ double every training time in `labs.md`.
 
 **`Killed` during Lab 4.**
 Out of memory. Close other running processes and re-run; Lab 4 briefly holds
-two models (Step 6 reloads the base at bfloat16 to merge into, and Step 8 loads
+two models (Step 6 reloads the 16-bit base to fold the adapter into, and Step 8 loads
 TinyLlama). If it persists, drop `QLORA_BATCH` from 2 to 1 and skip Step 8.
 
 **Lab 4 fails to load the model in 4-bit.**

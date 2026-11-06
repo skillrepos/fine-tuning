@@ -22,9 +22,10 @@ import sys
 import tempfile
 import time
 
-# Keep the output readable: no download/loading progress bars or info chatter.
-os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
-os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+# Keep the output readable: hide library warnings and progress bars, the same
+# way the labs do.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import common.quiet  # noqa: E402,F401
 
 PASS, WARN, FAIL = "OK  ", "WARN", "FAIL"
 results = []
@@ -75,9 +76,6 @@ for name in LIBS:
         report(FAIL, f"{name:<13}", f"cannot import ({type(e).__name__}: {e})")
 if missing:
     print("\n  Fix: activate .venv, then  pip install -r requirements.txt")
-if "bitsandbytes" not in missing:
-    print("\n  (A line saying 'Failed to load CPU gemm_4bit_forward ... kernels' is harmless:")
-    print("   bitsandbytes simply uses its slower built-in version. You can ignore it.)")
 
 # ---------------------------------------------------------------------------
 header("2. Workshop models downloaded")
@@ -129,8 +127,8 @@ else:
             device_map={"": "cpu"})
         n4 = sum(1 for m in model.modules() if type(m).__name__ == "Linear4bit")
         if n4 == 0:
-            raise RuntimeError("model loaded, but no layer was quantized to 4-bit")
-        report(PASS, "load in 4-bit NF4", f"{n4} layers quantized")
+            raise RuntimeError("model loaded, but no layer was stored in 4 bits")
+        report(PASS, "load in 4 bits", f"{n4} layers stored in 4 bits")
 
         model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)
         model = get_peft_model(model, LoraConfig(
@@ -143,9 +141,9 @@ else:
         grads = [p.grad for n, p in model.named_parameters()
                  if "lora_" in n and p.grad is not None]
         if not grads or all(float(g.abs().sum()) == 0.0 for g in grads):
-            raise RuntimeError("no gradient reached the LoRA adapters")
+            raise RuntimeError("training did not reach the LoRA adapters")
         report(PASS, "train through 4-bit base",
-               f"gradients reached {len(grads)} adapter tensors "
+               f"training reached {len(grads)} adapter pieces "
                f"({time.time() - t0:.1f}s)")
     except Exception as e:
         report(FAIL, "4-bit test", f"{type(e).__name__}: {e}")

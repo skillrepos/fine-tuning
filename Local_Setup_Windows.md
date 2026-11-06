@@ -209,9 +209,7 @@ You want the last line to say:
 RESULT: ready for the workshop.
 ```
 
-Any `FAIL` line tells you what to fix. `WARN` lines are optional. A line
-mentioning `gemm_4bit_forward` and `kernels` is a harmless message from the 4-bit
-library; you will see it during the labs too. Ignore it.
+Any `FAIL` line tells you what to fix. `WARN` lines are optional.
 
 <br>
 

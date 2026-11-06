@@ -110,7 +110,7 @@ code -d extra/lab1_prep_complete.txt finetune/lab1_prep.py
 python finetune/lab1_prep.py
 ```
 
-This takes about 2 minutes. The output is formatted as *STEP* sections which we'll look at more closely in the following lab steps. Warnings about `loss_type` or pad tokens are harmless.
+This takes about 2 minutes. The output is formatted as *STEP* sections which we'll look at more closely in the following lab steps.
 
 <br><br>
 
@@ -282,25 +282,25 @@ trained: `100.0000%`. Remember that number; in Lab 3 the same line reads about
 
 <br><br>
 
-5. Read the `<|pad|>` note in **STEP 1**. It avoids a common bug. Training
+5. Read the padding-token note in **STEP 1**. It avoids a common bug. Training
 examples have different lengths, so shorter ones are filled out with a
-*padding* token. GPT-2 models have none, and many tutorials reuse the *end*
-token for it. But padding is left out of the grading — so if padding and end
-share a token, the real end tokens are left out too, and the model never learns
-to stop. Two different tokens avoid that.
+*padding* token. GPT-2 models have none, and many tutorials reuse the
+*end-of-text* token for it. But padding is left out of the grading — so if the
+two share a token, the real end-of-text tokens are left out too, and the model
+never learns to stop. Two different tokens avoid that.
 
 <br><br>
 
-6. Look at **STEP 3**. Compare the end of the input with the end of the labels
-(what the model is graded on):
+6. Look at **STEP 3**. It shows where the shortest example ends and its
+padding begins, and which tokens are graded:
 
 ```
-  input_ids tail : [..., 50257, 50257, 50257]
-  labels tail    : [...,  -100,  -100,  -100]
+    tokens       : [..., 50256, 50257, 50257, ...]
+    what's graded: [..., 50256,  -100,  -100, ...]
 ```
 
-`-100` means "don't grade this position": the padding is ignored, while the
-real end token is kept.
+`-100` means "skip this one when grading": the padding (50257) is skipped,
+while the end-of-text token (50256) is still graded.
 
 <br><br>
 
@@ -308,8 +308,8 @@ real end token is kept.
 about 5 at the start to below 1 by the end. If it stays flat or jumps around, the learning
 rate (step size) is usually the problem. Note that a falling loss only shows the
 model is learning its training examples; the test scores in STEP 7 show whether
-that works on new tickets. (The "Final training loss" line is the average over
-the whole run, so it is higher than the last few values.)
+that works on new tickets. (The "Average loss over the whole run" line is just
+that, so it is higher than the last few values.)
 
 ![Lab 2 training loss falling](./images/ft-lab2-training.png?raw=true "Training loss during full fine-tuning")
 
@@ -388,11 +388,6 @@ code -d extra/lab3_lora_complete.txt finetune/lab3_lora.py
 ```
 python finetune/lab3_lora.py
 ```
-
-You may see a line mentioning `gemm_4bit_forward` and `kernels` — it is a
-harmless message from the 4-bit library (it appears in Labs 3-5). Ignore it.
-
-<br><br>
 
 4. Look at **STEP 2**. It lists the layers inside this model where LoRA can
 attach adapters. The names differ between kinds of model, so always use the
@@ -523,9 +518,10 @@ python finetune/lab4_qlora.py
 4. Look at **STEP 1 and STEP 2** — the same model stored three ways:
 
 ```
-  bfloat16   :     ~690 MB   (2 bytes per weight)
-  float32    :   ~1,380 MB   (4 bytes per weight -- what Lab 3 used)
-  4-bit NF4  :     ~240 MB
+  at 16 bits (2 bytes each):      690 MB
+  at 32 bits (4 bytes each):    1,380 MB   (what Lab 3 used)
+  ...
+  at 4 bits (0.5 byte each):      240 MB
 ```
 
 4-bit isn't a full 8 times smaller than 32-bit: some parts of the model stay
@@ -539,11 +535,11 @@ notice:
 - **Packed** — two 4-bit numbers are stored in each byte.
 - **In groups** — numbers are compressed 64 at a time, each group with its own
   scale, so one unusual value can't spoil the rest.
-- **NF4** — the 4-bit format QLoRA uses. Its 16 possible values are spaced to
-  match how a trained model's numbers are actually spread out, so it loses
+- **The "nf4" format** — the 4-bit format QLoRA uses. Its 16 possible values
+  are placed where a trained model's numbers actually tend to fall, so it loses
   less accuracy than evenly spaced values would.
 
-![Lab 4 memory comparison and Linear4bit inspection](./images/ft-lab4-memory.png?raw=true "4-bit NF4 memory footprint")
+![Lab 4 memory comparison and a look inside a 4-bit layer](./images/ft-lab4-memory.png?raw=true "4-bit memory use")
 
 <br><br>
 
@@ -551,8 +547,8 @@ notice:
 adapter even though the model underneath is compressed. Then read the timing:
 
 ```
-  4-bit NF4, batch 2       : ~45-50 s/step
-  Lab 3 float32, batch 8   : ~6-10 s/step
+  4-bit, 2 examples per step :  ~45-50 seconds per step
+  Lab 3, 8 examples per step :   ~6-10 seconds per step
 ```
 
 Lab 3 also handled four times as many examples per step (8 instead of 2), so per
@@ -563,9 +559,9 @@ is the problem. If the model already fits, plain LoRA trains faster.
 
 7. Look at **STEP 6**, the merge: folding the adapter permanently into the model,
 so you can ship one ordinary model. Read the code: we trained on the 4-bit
-model, but merge into a fresh full-precision (bfloat16) copy. Merging into the
+model, but merge into a fresh full-size (16-bit) copy. Merging into the
 compressed version would make its accuracy loss permanent. The order is always:
-train compressed → merge into full precision → compress the result again if
+train compressed → merge into a full-size copy → compress the result again if
 you need to.
 
 <br><br>
@@ -591,7 +587,7 @@ found almost no difference in quality.
 10. Look at **STEP 8**. TinyLlama, a 1.1-billion-parameter model, loaded in 4-bit
 takes less memory than Lab 3's 360-million-parameter model did at full size.
 That is the point of QLoRA: on the same hardware, you can fine-tune a model
-about one size class bigger.
+about three times bigger.
 
 <br><br>
 
@@ -684,8 +680,8 @@ run                                      format  category  priority   queue     
 Lab 1  bare prompt distilgpt2  82M        0.0%     0.0%     0.0%   0.0%       -      -      -
 Lab 1  best prompt SmolLM2  360M        100.0%    30.0%    45.0%  45.0%       -      -      -
 Lab 2  full FT     distilgpt2  82M        ...      ...      ...    ...      ...     72    ...
-Lab 3  LoRA fp32   SmolLM2  360M          ...      ...      ...    ...      ...     24    ...
-Lab 4  QLoRA probe SmolLM2  360M          ...      ...      ...    ...      ...      4    ...
+Lab 3  LoRA        SmolLM2  360M          ...      ...      ...    ...      ...     24    ...
+Lab 4  QLoRA test  SmolLM2  360M          ...      ...      ...    ...      ...      4    ...
   (random guessing, on average: category 12.5%, priority 25.0%, queue 16.7%)
 ```
 
@@ -720,7 +716,7 @@ different problems with different fixes.
 9. Look at **STEP 5**, the general-knowledge scores before and after training:
 
 ```
-  task                   base   +adapter      delta
+  quiz                 before   +adapter     change
   --------------------------------------------------
   arc_challenge         0.250      0.250     +0.000
   arc_easy              0.250      0.300     +0.050
@@ -814,21 +810,21 @@ Plain-language versions of every training term used today.
 | **Optimizer** | The code that applies those nudges. Ours, called **Adam**, also keeps two extra numbers for every parameter it trains — one reason retraining a whole model needs so much memory. |
 | **Learning rate** | How big each nudge is. Too high: the loss jumps around. Too low: nothing happens. |
 | **Batch** | How many examples are processed together for one update. |
-| **Step** | One update of the weights (one batch). |
+| **Step** | One round of adjusting the model's numbers (after one batch). |
 | **Epoch** | One full pass over the training data. 281 examples at batch 8 ≈ 35 steps per epoch. |
 | **Token** | The unit models read — roughly a word fragment. Our tickets are ~50-70 tokens. |
 | **Tokenizer** | The tool that turns text into tokens (and back), and adds a chat model's special markers. |
-| **EOS / PAD** | End-of-sequence token (the stop signal the model must learn) / filler that makes batch rows the same length. They must be *different* tokens — see Lab 2. |
+| **End-of-text / padding token** | The end-of-text token is the stop signal the model must learn. The padding token is filler that makes a group of examples the same length. They must be *different* tokens — see Lab 2. |
 | **Masking / -100** | Marking positions with -100 so they aren't graded — used so the model is graded only on its answer, not on repeating the ticket. |
 | **Base vs. instruct model** | A base model only continues text. An instruct model had a further training pass to follow instructions. distilgpt2 is base; SmolLM2-360M-Instruct is instruct. |
 | **Rank (r)** | The size of a LoRA adapter. Bigger can learn more, but is bigger and slower to train. |
 | **Alpha (lora_alpha)** | How strongly the adapter's adjustments count. The usual setting is twice r. |
 | **Adapter** | The small add-on LoRA trains (tens of MB), saved separately from the unchanged model. |
-| **Quantization / NF4** | Storing a model's numbers in fewer bits to save memory. NF4 is the 4-bit format QLoRA uses. |
-| **Merge** | Folding an adapter back into the base weights to get one ordinary model. Always merge into a full-precision base. |
-| **Held-out / eval set** | Data the model never trained on. The only scores that count. |
+| **Quantization / nf4** | Storing a model's numbers in fewer bits to save memory. "nf4" is the 4-bit format QLoRA uses. |
+| **Merge** | Folding an adapter into the model itself to get one ordinary model. Always merge into a full-size (16- or 32-bit) copy. |
+| **Test set** | Tickets the model never trained on. The only scores that count. |
 | **Baseline** | The best score you can get without training — what every later run is measured against. Ours is the Lab 1 best-prompt score. |
-| **Catastrophic forgetting** | Training hard on a narrow task degrading everything else the model could do. Lab 5's harness run is the check. |
+| **Catastrophic forgetting** | Training hard on a narrow task degrading everything else the model could do. Lab 5's general-knowledge quiz (STEP 5) is the check. |
 
 <br><br>
 

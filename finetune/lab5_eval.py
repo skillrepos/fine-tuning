@@ -15,6 +15,7 @@ best prompt we can write. It is skipped automatically if you have no key.
 
 import sys, os, json, glob
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import common.quiet   # hide library warnings and progress bars
 
 import torch
 from collections import Counter, defaultdict
@@ -36,7 +37,7 @@ N_EVAL = 20
 # STEP 1 - The comparison table: every run's scores side by side
 # ==========================================================================
 print("\n" + "=" * 78)
-print("STEP 1: Task metrics across every run")
+print("STEP 1: Every run's scores, side by side")
 print("=" * 78)
 
 with open(os.path.join(OUT_DIR, "results.json")) as f:
@@ -48,8 +49,8 @@ LABEL = {
     "baseline_distilgpt2": "Lab 1  bare prompt distilgpt2  82M",
     "bestprompt_smollm2":  "Lab 1  best prompt SmolLM2  360M",
     "fullft_distilgpt2":   "Lab 2  full FT     distilgpt2  82M",
-    "lora_smollm2":        "Lab 3  LoRA fp32   SmolLM2  360M",
-    "qlora_smollm2":       "Lab 4  QLoRA probe SmolLM2  360M",
+    "lora_smollm2":        "Lab 3  LoRA        SmolLM2  360M",
+    "qlora_smollm2":       "Lab 4  QLoRA test  SmolLM2  360M",
 }
 
 hdr = (f"{'run':38s} {'format':>8s} {'category':>9s} {'priority':>9s} "
@@ -61,7 +62,7 @@ for key in ORDER:
         print(f"{LABEL[key]:38s}  (not run)")
         continue
     # TODO 1: print one table row per run -- format, category, priority,
-    #         queue, artifact size, step count, training seconds.
+    #         queue, file size (MB), step count, training seconds.
     r = results[key]
     print(f"{LABEL[key]:38s}")
 
@@ -73,25 +74,25 @@ print("""
 
   Read the columns, not just the last row.
 
-  format   -- can the model produce the SHAPE we require at all?
+  format   -- can the model write its answer in the required shape at all?
   category -- does it understand the ticket?
-  MB       -- what do we have to store and ship per fine-tuned variant?
-  steps    -- how much supervision did it actually see?
-  sec      -- what did it cost to produce?
+  MB       -- how much disk space each fine-tuned version takes
+  steps    -- how many rounds of training it had
+  sec      -- how long training took
 
-  A single "accuracy" number would have hidden every one of those trade-offs.
+  A single overall score would have hidden every one of those trade-offs.
 
-  Now read the last two rows with the steps column in view. Lab 4 is a 4-step
-  MECHANICS probe, not a quality run -- on CPU a like-for-like 24-step 4-bit
-  run measures over an hour. So this table does NOT tell you what quantization
-  costs in accuracy. It tells you something else worth just as much: the gap
-  between the last two rows is almost entirely a STEP COUNT gap, which is the
-  single most common reason a real fine-tune underperforms.
+  Now compare the last two rows, looking at the steps column. Lab 4 was a
+  4-step test of how QLoRA works, not a quality run -- a full 24-step 4-bit
+  run takes over an hour on a CPU. So this table does NOT show what 4-bit
+  storage costs in quality. It shows something just as useful: the gap
+  between the last two rows comes almost entirely from the number of
+  training steps -- the most common reason a real fine-tune disappoints.
 
-  The quantization-quality question is answered in the literature (QLoRA
-  matches 16-bit LoRA on their benchmarks) and is set as homework at the end
-  of Lab 4. What Lab 4 proved live is that 4-bit training runs at all, what it
-  costs in memory, and how to export the result.
+  The 4-bit quality question has been studied (the QLoRA paper found 4-bit
+  matched 16-bit LoRA on its tests), and it is homework at the end of Lab 4.
+  What Lab 4 showed live: 4-bit training works, how much memory it saves,
+  and how to save the result as one standalone model.
 """)
 
 
@@ -99,20 +100,20 @@ print("""
 # STEP 2 - Reload the best model for a closer look
 # ==========================================================================
 print("\n" + "=" * 78)
-print("STEP 2: Reload the LoRA model for error analysis")
+print("STEP 2: Reload the Lab 3 model to look at its mistakes")
 print("=" * 78)
 
 if not os.path.isdir(LORA_DIR):
     print(f"""
   No adapter found at {LORA_DIR}.
 
-  Steps 2-4 need the artifact Lab 3 produces. Go back and run Lab 3, then rerun
-  this script. Steps 1, 5 and 6 above and below do not need it.
+  Steps 2-4 need the adapter Lab 3 saves. Go back and run Lab 3, then rerun
+  this script. Steps 1, 5 and 6 do not need it.
 """)
     raise SystemExit(0)
 
-# Load the tokenizer we SAVED alongside the adapter, not a fresh one -- it
-# carries the pad-token change we made in Lab 3.
+# Load the tokenizer we SAVED next to the adapter, not a fresh one -- it
+# includes the padding-token change we made in Lab 3.
 tokenizer = AutoTokenizer.from_pretrained(LORA_DIR)
 
 base = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.float32)
@@ -128,7 +129,7 @@ preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24)
 # STEP 3 - Score each category separately: where is it failing?
 # ==========================================================================
 print("\n" + "=" * 78)
-print("STEP 3: Per-category breakdown")
+print("STEP 3: Score each category separately")
 print("=" * 78)
 
 per = defaultdict(lambda: [0, 0])
@@ -151,9 +152,10 @@ if confusions:
         print(f"    {t:24s} -> {g:24s} x{c}")
 
 print("""
-  An aggregate score tells you IF you have a problem. A per-class breakdown
-  tells you WHERE. If one category is dragging everything down, the fix is
-  usually more training examples for that category -- not more epochs.
+  One overall score tells you IF there is a problem. Scoring each category
+  separately tells you WHERE. If one category drags everything down, the
+  usual fix is more training examples of that category -- not more passes
+  over the same data.
 """)
 
 
@@ -175,8 +177,9 @@ if shown == 0:
     print("\n  No failures in this sample -- try raising N_EVAL.")
 
 print("""
-  Always read a handful. Metrics are lossy summaries; the actual failures tell
-  you whether the model is confused about the task or the data is ambiguous.
+  Always read a few. Scores are summaries that hide detail; the actual
+  mistakes show whether the model misunderstands the task or the correct
+  answer itself is unclear.
 """)
 
 
@@ -184,7 +187,7 @@ print("""
 # STEP 5 - Did training make the model worse at general tasks?
 # ==========================================================================
 print("\n" + "=" * 78)
-print("STEP 5: Did we damage the model? (lm-evaluation-harness results)")
+print("STEP 5: Did training make the model worse at anything else?")
 print("=" * 78)
 
 
@@ -202,7 +205,7 @@ lora_res = read_harness("harness-lora")
 
 if base_res and lora_res:
     tasks = sorted(set(base_res) & set(lora_res))
-    print(f"\n  {'task':16s} {'base':>10s} {'+adapter':>10s} {'delta':>10s}")
+    print(f"\n  {'quiz':16s} {'before':>10s} {'+adapter':>10s} {'change':>10s}")
     print("  " + "-" * 50)
     for t in tasks:
         def pick(d):
@@ -215,36 +218,35 @@ if base_res and lora_res:
             continue
         print(f"  {t:16s} {b:10.3f} {l:10.3f} {l - b:+10.3f}")
     print("""
-  This is the catastrophic-forgetting check, measured. The adapter made the
-  model good at ticket triage; these numbers ask what that cost on everything
-  else.
+  These are two general-knowledge quizzes (school science questions) that
+  have nothing to do with support tickets. Training on one narrow task can
+  quietly make a model worse at everything else -- called "catastrophic
+  forgetting". These numbers check for it.
 
-  How to read the deltas:
+  How to read the change column:
 
-    near zero      -- what you should EXPECT here, and what we typically see.
-                      24 steps of LoRA on 7 attention/MLP projections is a
-                      very light touch. Nothing got overwritten.
-    small positive -- noise, not improvement. At --limit 20 one extra correct
-                      answer moves the number by 0.05. Do not go tell anyone
-                      that fine-tuning on support tickets improved ARC.
-    small negative -- also noise at this sample size, and normal even when
-                      real.
-    large negative -- the finding you ran this to catch. Learning rate or
-                      epoch count too aggressive, or a dataset so narrow the
-                      model collapsed onto one output shape. Mix in general
-                      instruction data and retrain.
+    near zero      -- what to expect here. 24 LoRA steps is a very light
+                      touch; nothing got overwritten.
+    small increase -- luck, not improvement. With only 20 questions, one
+                      extra right answer moves the score by 0.05. Don't tell
+                      anyone support-ticket training made it better at science.
+    small decrease -- also luck at this size, and normal even when real.
+    large decrease -- what this check is for. Training was too aggressive
+                      (learning rate too high, too many passes) or the data
+                      too narrow, and the model now gives one kind of answer
+                      to everything. Mix in general examples and retrain.
 
-  The point of the check is not the number, it is having the number. Most
-  teams ship a fine-tune having never measured this at all.
+  The value is in having the number at all. Many teams ship a fine-tuned
+  model without ever checking this.
 
-  Note: --limit 20 gives a deliberately noisy estimate so it finishes in a
-  minute. It is enough to catch a collapse, not enough to publish. Drop
-  --limit for a real number.
+  Note: --limit 20 keeps this to about a minute, so the scores are rough. It
+  is enough to catch a big drop, not enough to publish. Remove --limit for a
+  real number.
 """)
 else:
     print("""
-  No harness output found. Run the two lm_eval commands from labs.md first:
-  they write into out/harness-base/ and out/harness-lora/.
+  No quiz results found. Run the two lm_eval commands from labs.md first:
+  they save their results in out/harness-base/ and out/harness-lora/.
 """)
 
 
@@ -252,7 +254,7 @@ else:
 # STEP 6 (OPTIONAL) - How does a large hosted model do with just a prompt?
 # ==========================================================================
 print("\n" + "=" * 78)
-print("STEP 6: The prompt-engineering ceiling (optional -- needs GROQ_API_KEY)")
+print("STEP 6 (optional, needs GROQ_API_KEY): A huge hosted model, prompt only")
 print("=" * 78)
 
 # Set in common/triage.py, so there is ONE place to change when Groq stops
@@ -274,7 +276,7 @@ if groq_preds is None:
 """)
 else:
     gs = score(groq_preds, eval_rows)
-    print_scores(f"ZERO-SHOT PROMPT - {FRONTIER}", gs)
+    print_scores(f"PROMPT ONLY, NO TRAINING - {FRONTIER}", gs)
     save_result("zeroshot_groq_frontier", gs, {
         "model": FRONTIER, "trained": False, "method": "zero-shot prompt",
     })
@@ -289,32 +291,34 @@ else:
             print(f"  {name:16s} {ours[k]:11.1%} {gs[k]:19.1%} {gs[k] - ours[k]:+10.1%}")
 
     print("""
-  Read this one carefully, because it is the question your management will ask.
+  Read this one carefully -- it is the question your managers will ask.
 
-  That model was given the BEST possible prompt -- every category, every
-  priority, the full routing table, and the exact output contract. This is
-  prompt engineering at its ceiling, on a model with roughly 330x the total
-  parameters of the one you fine-tuned (120B, mixture-of-experts, about 5B of
-  them active per token).
+  That model got the best prompt we could write: every category, every
+  priority, the full routing table, and the exact answer format. It has
+  about 330 times as many numbers as the model you fine-tuned (120 billion,
+  though it uses only about 5 billion of them for each word it writes).
 
-  Whichever way the accuracy falls, these do not change:
+  However the scores compare, these points don't change:
 
-    Cost      -- you pay per token, on every request, forever. The prompt above
-                 is ~250 tokens that get re-sent and re-billed every single time.
-    Latency   -- a network round trip per ticket, versus local inference.
-    Privacy   -- every ticket leaves your network. For a lot of enterprises that
-                 ends the conversation on its own.
-    Control   -- the model can be deprecated or silently updated underneath you.
-                 Your adapter is a 37 MB file you own. This is not theoretical:
-                 the model THIS STEP used to call, llama-3.3-70b-versatile, was
-                 switched off by Groq on 2026-08-16, and the step broke until
-                 someone edited one constant. Your Lab 3 adapter still runs.
-    Drift     -- a prompt is a suggestion. Weights are a commitment.
+    Cost      -- you pay for every word sent and received, on every request.
+                 That prompt is about 250 tokens, sent and paid for every time.
+    Speed     -- every ticket makes a trip over the internet, instead of
+                 running on your own machine.
+    Privacy   -- every ticket leaves your network. For many companies, that
+                 alone rules it out.
+    Control   -- the provider can retire or change the model at any time.
+                 Your adapter is a 37 MB file you own. This really happened:
+                 the model THIS STEP used to call, llama-3.3-70b-versatile,
+                 was switched off by Groq on 2026-08-16, and the step broke
+                 until someone changed one line. Your Lab 3 adapter still runs.
+    Reliability -- a prompt only asks the model to behave a certain way;
+                 training changes the model itself.
 
-  If the frontier model wins on accuracy here, the honest read is: this task is
-  easy enough to prompt, and you should think hard about whether fine-tuning
-  earns its keep. That is a legitimate outcome, and knowing it costs you one
-  API call. Run this comparison BEFORE you invest in fine-tuning, not after.
+  If the big model wins on the scores here, the honest conclusion is: this
+  task is easy enough to solve with a prompt, so think hard about whether
+  fine-tuning is worth it. That is a perfectly good outcome, and finding out
+  costs one quick test. Run this comparison BEFORE you invest in
+  fine-tuning, not after.
 """)
 
 
@@ -330,8 +334,8 @@ print("""
     Does fine-tuning help this task?      -> best-prompt row vs. trained rows
     Do we need full fine-tuning?          -> Lab 2 vs. Lab 3 quality per MB
     Do we need a bigger model?            -> category accuracy across sizes
-    Did we break anything?                -> the harness deltas
+    Did we break anything?                -> the quiz changes in Step 5
     Should we have just used an API?      -> the Step 6 head-to-head
 
-  That is the whole job. Everything else is hyperparameters.
+  That is the whole job. Everything else is adjusting settings.
 """)

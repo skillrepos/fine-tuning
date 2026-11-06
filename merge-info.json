@@ -7,7 +7,7 @@
         "title": "Reshape into prompt / completion",
         "note": [
           "**Turns every raw ticket into a prompt plus the answer we want back.**",
-          "- `map()` runs the helper on every row of both splits",
+          "- `map()` runs the helper on every row, in both the training and test sets",
           "- Lab 3 uses this split to grade only the answer"
         ]
       },
@@ -25,7 +25,7 @@
         "anchor": "preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24, show=3)",
         "title": "Baseline predictions",
         "note": [
-          "**Asks the untrained model to triage 20 held-out tickets.**",
+          "**Asks the untrained model to triage 20 test tickets it never trained on.**",
           "- `show=3` prints three examples so you can see what it produced"
         ]
       },
@@ -66,17 +66,17 @@
         "note": [
           "**How long, how fast, and on what hardware to train.**",
           "- 2 passes over the data, 8 examples per step",
-          "- `warmup_steps=0.05` means 5% of training, not 0.05 steps",
-          "- `use_cpu=True` replaces the removed `no_cuda`"
+          "- `warmup_steps=0.05`: ease in over the first 5% of steps (5%, not 0.05 steps)",
+          "- `use_cpu=True`: run on the processor, not a graphics card"
         ]
       },
       {
         "anchor": "train_dataset=tokenized[\"train\"],",
-        "endAnchor": "processing_class=tokenizer,   # the tokenizer (older versions: tokenizer=)",
+        "endAnchor": "processing_class=tokenizer,   # the tokenizer from Step 1",
         "title": "Hand the data to the Trainer",
         "note": [
           "**Gives the Trainer the tokenized tickets, the collator, and the tokenizer.**",
-          "- `processing_class=` is the new name for `tokenizer=`"
+          "- The tokenizer now goes in `processing_class=`"
         ]
       }
     ],
@@ -124,17 +124,17 @@
         "title": "4-bit quantization settings",
         "note": [
           "**Store the frozen model in 4 bits instead of 32 to save memory.**",
-          "- `nf4`: 4-bit format tuned to how trained weights are spread",
-          "- Math still runs at 16-bit; double quant shrinks the overhead too"
+          "- `nf4`: a 4-bit format designed for the numbers in a model",
+          "- Calculations still run at 16 bits; double quant saves a bit more memory"
         ]
       },
       {
-        "anchor": "quantization_config=bnb_config,         # required (load_in_4bit=True alone fails)",
+        "anchor": "quantization_config=bnb_config,         # hand the 4-bit settings to the loader",
         "lines": 1,
         "title": "Load the model in 4-bit",
         "note": [
           "**Passes those settings in while loading, so weights are stored in 4 bits.**",
-          "- The old `load_in_4bit=True` shortcut no longer exists"
+          "- The old shortcut, `load_in_4bit=True` on its own, no longer works"
         ]
       },
       {
@@ -199,7 +199,7 @@
         "title": "Reshape into prompt / completion",
         "note": [
           "**Turns every raw ticket into a prompt plus the answer we want back.**",
-          "- `map()` runs the helper on every row of both splits",
+          "- `map()` runs the helper on every row, in both the training and test sets",
           "- Lab 3 uses this split to grade only the answer"
         ],
         "lines": 3
@@ -220,7 +220,7 @@
         "done": "preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24, show=3)",
         "title": "Baseline predictions",
         "note": [
-          "**Asks the untrained model to triage 20 held-out tickets.**",
+          "**Asks the untrained model to triage 20 test tickets it never trained on.**",
           "- `show=3` prints three examples so you can see what it produced"
         ],
         "lines": 2
@@ -245,7 +245,7 @@
           "**Joins prompt, correct answer, and an end token into one string to train on.**",
           "- The end token is how the model learns where to stop"
         ],
-        "lines": 4
+        "lines": 5
       },
       {
         "anchor": "# TODO 2: build the batching helper (collator) for a model that writes",
@@ -265,8 +265,8 @@
         "note": [
           "**How long, how fast, and on what hardware to train.**",
           "- 2 passes over the data, 8 examples per step",
-          "- `warmup_steps=0.05` means 5% of training, not 0.05 steps",
-          "- `use_cpu=True` replaces the removed `no_cuda`"
+          "- `warmup_steps=0.05`: ease in over the first 5% of steps (5%, not 0.05 steps)",
+          "- `use_cpu=True`: run on the processor, not a graphics card"
         ],
         "lines": 5
       },
@@ -276,7 +276,7 @@
         "title": "Hand the data to the Trainer",
         "note": [
           "**Gives the Trainer the tokenized tickets, the collator, and the tokenizer.**",
-          "- `processing_class=` is the new name for `tokenizer=`"
+          "- The tokenizer now goes in `processing_class=`"
         ],
         "lines": 5
       }
@@ -332,18 +332,18 @@
         "title": "4-bit quantization settings",
         "note": [
           "**Store the frozen model in 4 bits instead of 32 to save memory.**",
-          "- `nf4`: 4-bit format tuned to how trained weights are spread",
-          "- Math still runs at 16-bit; double quant shrinks the overhead too"
+          "- `nf4`: a 4-bit format designed for the numbers in a model",
+          "- Calculations still run at 16 bits; double quant saves a bit more memory"
         ],
         "lines": 5
       },
       {
         "anchor": "    BASE_MODEL,",
-        "done": "quantization_config=bnb_config,         # required (load_in_4bit=True alone fails)",
+        "done": "quantization_config=bnb_config,         # hand the 4-bit settings to the loader",
         "title": "Load the model in 4-bit",
         "note": [
           "**Passes those settings in while loading, so weights are stored in 4 bits.**",
-          "- The old `load_in_4bit=True` shortcut no longer exists"
+          "- The old shortcut, `load_in_4bit=True` on its own, no longer works"
         ],
         "lines": 1
       },
@@ -367,7 +367,7 @@
         "lines": 3
       },
       {
-        "anchor": "# TODO 3: attach the saved adapter to the normal (bfloat16) model with",
+        "anchor": "# TODO 3: attach the saved adapter to the normal 16-bit model with",
         "done": "merged = PeftModel.from_pretrained(base, ADAPTER_DIR)",
         "title": "Merge the adapter",
         "note": [

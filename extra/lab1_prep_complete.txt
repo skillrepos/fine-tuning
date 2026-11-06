@@ -11,6 +11,7 @@ This script does both.
 
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import common.quiet   # hide library warnings and progress bars
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -35,21 +36,22 @@ print("STEP 1: Load the ticket dataset")
 print("=" * 70)
 
 ds = load_tickets()
-print(ds)
-print("\nColumns:", ds["train"].column_names)
-print("\nOne raw training row:")
+print(f"\n  {len(ds['train'])} training tickets, and {len(ds['eval'])} test tickets "
+      f"held back to score the model")
+print("  Each row has:", ", ".join(ds["train"].column_names))
+print("\n  One training row:")
 for k, v in ds["train"][0].items():
-    print(f"  {k:10s}: {v}")
+    print(f"    {k:10s}: {v}")
 
-print(f"\nLabel space: {len(CATEGORIES)} categories x {len(PRIORITIES)} priorities "
-      f"x {len(QUEUES)} queues")
+print(f"\n  Possible answers: {len(CATEGORIES)} categories x {len(PRIORITIES)} "
+      f"priorities x {len(QUEUES)} queues")
 
 
 # ==========================================================================
 # STEP 2 - Count how many tickets have each category and priority
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 2: Check the label distribution")
+print("STEP 2: How many tickets of each category and priority?")
 print("=" * 70)
 
 from collections import Counter
@@ -64,7 +66,7 @@ for col in ["category", "priority"]:
 # STEP 3 - Split each row into a prompt and the answer we want back
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 3: Format as prompt / completion pairs")
+print("STEP 3: Split each ticket into a prompt and the answer we want back")
 print("=" * 70)
 
 formatted = ds.map(to_prompt_completion)
@@ -99,29 +101,32 @@ rendered = chat_tok.apply_chat_template(messages, tokenize=False,
                                         add_generation_prompt=True)
 print(rendered)
 print("-" * 60)
-print("Same content, but wrapped in the special tokens THIS model family was")
-print("trained on. Use the wrong template and quality quietly degrades.")
+print("Same content, wrapped in the special markers (like <|im_start|>) that THIS")
+print("model was trained to expect. Use the wrong markers and its answers quietly")
+print("get worse.")
 
 
 # ==========================================================================
 # STEP 5 - Split the text into tokens and count them
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 5: How long are these sequences?")
+print("STEP 5: How long is each example, in tokens?")
 print("=" * 70)
 
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
-tokenizer.pad_token = tokenizer.eos_token   # GPT-2 ships without a pad token
+tokenizer.pad_token = tokenizer.eos_token   # GPT-2 has no padding token; fine here, we only count
 
 lengths = [
     len(tokenizer(r["prompt"] + r["completion"])["input_ids"])
     for r in formatted["train"]
 ]
 lengths.sort()
-print(f"\n  min {lengths[0]}  median {lengths[len(lengths) // 2]}  "
-      f"p95 {lengths[int(len(lengths) * 0.95)]}  max {lengths[-1]} tokens")
-print("\n  Short sequences are why this workshop fits on a CPU. Sequence length")
-print("  drives cost quadratically in attention -- keep it tight.")
+print(f"\n  shortest {lengths[0]}   typical {lengths[len(lengths) // 2]}   "
+      f"longest {lengths[-1]} tokens")
+print("  (a token is a word or a piece of a word)")
+print("\n  Short examples are why this workshop can run on a plain CPU. Longer text")
+print("  costs more to train on, and the cost grows faster than the length --")
+print("  so keep examples short.")
 
 
 # ==========================================================================
@@ -133,14 +138,15 @@ print("=" * 70)
 
 model = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.float32)
 total = sum(p.numel() for p in model.parameters())
-print(f"\n  {BASE_MODEL}: {total:,} parameters ({total / 1e6:.0f}M)")
+print(f"\n  {BASE_MODEL}: {total:,} parameters ({total / 1e6:.0f} million) --")
+print("  the numbers inside the model that training adjusts")
 
 
 # ==========================================================================
 # STEP 7 - Get the untrained model's answers
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 7: Baseline predictions from the untrained model")
+print("STEP 7: The untrained model's answers")
 print("=" * 70)
 
 eval_rows = list(ds["eval"])[:N_EVAL]

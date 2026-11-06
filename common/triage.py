@@ -6,8 +6,8 @@ and focused on the one idea it is teaching:
 
   * the prompt / completion format used for the triage task
   * loading the ticket dataset through Hugging Face `datasets`
-  * generating predictions from any causal LM
-  * scoring predictions against the required schema
+  * getting answers from any model that writes text
+  * scoring those answers against the correct labels
 
 You do not need to edit this file during the workshop, but reading it is
 worthwhile -- it is where the "boring" plumbing lives.
@@ -106,7 +106,7 @@ def build_prompt(ticket: str) -> str:
 def load_tickets():
     """Load the ticket dataset with the Hugging Face `datasets` library.
 
-    Returns a DatasetDict with 'train' and 'eval' splits. Each row has:
+    Returns the data in two parts, 'train' and 'eval'. Each row has:
     ticket, label, category, priority, queue.
     """
     return load_dataset(
@@ -283,7 +283,7 @@ def extract_fields(pred):
 
 
 def score(preds, rows):
-    """Score predictions against the gold labels.
+    """Score the model's answers against the correct answers.
 
     Returns a dict with four fractions (printed with the plain labels below):
       schema_valid  -- "right format": the first line is exactly
@@ -351,9 +351,31 @@ def param_report(model, label="model"):
     """Print total vs. trainable parameter counts -- the LoRA money shot."""
     total = sum(p.numel() for p in model.parameters())
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"\n  {label}: {trainable:,} trainable / {total:,} total "
+    print(f"\n  {label}: {trainable:,} of {total:,} numbers can be trained "
           f"({100 * trainable / total:.4f}%)")
     return trainable, total
+
+
+def plain_progress(trainer):
+    """Swap the Trainer's progress bar and raw log lines for one plain line
+    every time it reports the loss."""
+    from transformers import TrainerCallback
+    from transformers.trainer_callback import PrinterCallback, ProgressCallback
+
+    trainer.remove_callback(ProgressCallback)
+    trainer.remove_callback(PrinterCallback)
+
+    class PlainProgress(TrainerCallback):
+        def on_train_begin(self, args, state, control, **kwargs):
+            print(f"\n  Training for {state.max_steps} steps. The loss is how wrong the "
+                  "model's guesses are\n  -- watch it go down.\n", flush=True)
+
+        def on_log(self, args, state, control, logs=None, **kwargs):
+            if logs and "loss" in logs:
+                print(f"    step {state.global_step:>3} of {state.max_steps}   "
+                      f"loss {float(logs['loss']):.3f}", flush=True)
+
+    trainer.add_callback(PlainProgress())
 
 
 def model_size_mb(model):
@@ -368,7 +390,7 @@ def model_size_mb(model):
 
 
 # --------------------------------------------------------------------------
-# Optional: a frontier-model baseline via Groq
+# Optional: compare with a huge hosted model on Groq
 # --------------------------------------------------------------------------
 
 # Groq retires hosted models on a regular cadence. The model this workshop
@@ -398,7 +420,7 @@ FRONTIER_KWARGS = {
 
 
 def groq_predictions(rows, model=FRONTIER_MODEL, show=0, **model_kwargs):
-    """Zero-shot predictions from a large hosted model, for comparison.
+    """Answers from a large hosted model, prompt only (no training), for comparison.
 
     Returns None if the groq package is missing, GROQ_API_KEY is not set, or the
     API call fails -- this is an optional step and every lab must run without it.
@@ -438,7 +460,7 @@ def groq_predictions(rows, model=FRONTIER_MODEL, show=0, **model_kwargs):
                     k.startswith("reasoning") for k in kwargs):
                 kwargs = {k: v for k, v in kwargs.items()
                           if not k.startswith("reasoning")}
-                print("  (model rejected the reasoning_* args -- retrying without them)")
+                print("  (this model did not accept some settings -- retrying without them)")
                 try:
                     resp = client.chat.completions.create(
                         model=model, messages=messages, temperature=0, **kwargs)
@@ -464,6 +486,7 @@ def groq_predictions(rows, model=FRONTIER_MODEL, show=0, **model_kwargs):
     print(f"\n  ({len(rows)} predictions from {model} in {time.time() - start:.1f}s)")
     if empties:
         print(f"  WARNING: {empties} of {len(rows)} replies came back EMPTY.")
-        print("  That is the reasoning-token trap: raise max_completion_tokens")
-        print("  in FRONTIER_KWARGS (common/triage.py) and rerun.")
+        print("  The model probably used up its reply length thinking before it")
+        print("  answered. Raise max_completion_tokens in FRONTIER_KWARGS")
+        print("  (common/triage.py) and rerun.")
     return preds

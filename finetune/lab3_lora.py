@@ -12,6 +12,7 @@ repeating the ticket text it was given. Lab 2 graded both.
 
 import sys, os, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import common.quiet   # hide library warnings and progress bars
 
 import torch
 from transformers import (
@@ -22,7 +23,7 @@ from peft import LoraConfig, get_peft_model
 
 from common.triage import (
     load_tickets, build_prompt, generate_predictions,
-    score, print_scores, save_result, param_report, OUT_DIR,
+    score, print_scores, save_result, param_report, plain_progress, OUT_DIR,
 )
 
 BASE_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"
@@ -44,7 +45,7 @@ tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
 # SmolLM2 already has a spare token we can use for padding.
 if tokenizer.pad_token_id == tokenizer.eos_token_id:
     tokenizer.pad_token = "<|endoftext|>"
-print(f"\n  pad id = {tokenizer.pad_token_id}, eos id = {tokenizer.eos_token_id}")
+print(f"\n  padding token = {tokenizer.pad_token_id}    end-of-text token = {tokenizer.eos_token_id}")
 
 model = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.float32)
 param_report(model, "SmolLM2-360M base (before LoRA)")
@@ -75,18 +76,18 @@ print("""
 # STEP 3 - Choose the LoRA settings
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 3: Configure LoRA")
+print("STEP 3: Choose the LoRA settings")
 print("=" * 70)
 
 # TODO 1: set up LoRA -- adapter size (r) 16, strength (lora_alpha) 32,
-#         dropout 0.05, no bias, a text-writing model (CAUSAL_LM), and the
-#         seven layer names from Step 2. Leave use_dora=False for now.
+#         lora_dropout 0.05, bias "none", a text-writing model (CAUSAL_LM),
+#         and the seven layer names from Step 2. Leave use_dora=False for now.
 peft_config = LoraConfig(
     r=16,
     lora_alpha=32,
 )
 print(f"\n  r (adapter size) = {peft_config.r}   lora_alpha (strength) = {peft_config.lora_alpha}")
-print(f"  target_modules={peft_config.target_modules}")
+print(f"  layers to attach adapters to: {peft_config.target_modules}")
 
 
 # ==========================================================================
@@ -128,7 +129,7 @@ def encode(example):
     # -100 means "do not grade this position". Everything before the answer is
     # the ticket we gave the model; we don't want it graded on repeating that.
     # TODO 3: build the labels (what the model is graded on): -100 for every
-    #         prompt position, and the real token ids for the answer.
+    #         prompt position, and the answer's own token numbers.
     labels = full_ids
 
     return {"input_ids": full_ids,
@@ -142,7 +143,7 @@ row = tokenized["train"][0]
 n_masked = sum(1 for l in row["labels"] if l == -100)
 print(f"\n  first example: {len(row['input_ids'])} tokens, "
       f"{n_masked} from the prompt (not graded), {len(row['labels']) - n_masked} graded")
-print(f"  first 12 labels (-100 = not graded): {row['labels'][:12]}")
+print(f"  grading marks for the first 12 tokens (-100 = not graded): {row['labels'][:12]}")
 print("""
   In Lab 2 the model was also graded on repeating the ticket text, which wastes
   effort a small model can't spare. Here all of the training goes into writing
@@ -161,15 +162,15 @@ args = TrainingArguments(
     output_dir=OUTPUT_DIR,
     max_steps=MAX_STEPS,        # a fixed number of steps keeps the lab on time
     per_device_train_batch_size=8,
-    learning_rate=1e-3,         # step size; LoRA can use a bigger one than Lab 2
-    warmup_steps=0.1,
-    lr_scheduler_type="cosine",
-    logging_steps=4,
-    save_strategy="no",
-    eval_strategy="no",
-    report_to="none",
+    learning_rate=1e-3,         # how big each adjustment is; LoRA can use a bigger one than Lab 2
+    warmup_steps=0.1,           # ease in over the first 10% of steps
+    lr_scheduler_type="cosine", # ...then lower the learning rate slowly toward zero
+    logging_steps=4,            # report the loss every 4 steps
+    save_strategy="no",         # don't save copies during training
+    eval_strategy="no",         # don't stop to test during training
+    report_to="none",           # don't send results to outside tracking tools
     use_cpu=True,
-    optim="adamw_torch",
+    optim="adamw_torch",        # the standard method for applying each update
     seed=42,
 )
 
@@ -178,23 +179,24 @@ args = TrainingArguments(
 collator = DataCollatorForSeq2Seq(tokenizer, padding=True, label_pad_token_id=-100)
 
 # TODO 4: build the Trainer from the model with adapters, the training data,
-#         and the collator above.
+#         and the padding helper (collator) above.
 trainer = Trainer(
     model=peft_model,
     args=args,
 )
 
+plain_progress(trainer)   # one plain line per loss report, no progress bar
 t0 = time.time()
 result = trainer.train()
 elapsed = time.time() - t0
-print(f"\n  Trained in {elapsed:.0f}s   final loss {result.training_loss:.4f}")
+print(f"\n  Trained in {elapsed:.0f}s   average loss {result.training_loss:.4f}  (lower is better)")
 
 
 # ==========================================================================
 # STEP 7 - Save just the adapter
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 7: Save the adapter and compare artifact sizes")
+print("STEP 7: Save the adapter and compare file sizes")
 print("=" * 70)
 
 peft_model.save_pretrained(OUTPUT_DIR)
@@ -223,7 +225,7 @@ print("""
 # STEP 8 - Score the trained model
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 8: Evaluate the LoRA model")
+print("STEP 8: Score the LoRA model")
 print("=" * 70)
 
 eval_rows = list(ds["eval"])[:N_EVAL]

@@ -12,6 +12,7 @@ fully fine-tune on 4 CPU cores in a couple of minutes.
 
 import sys, os, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import common.quiet   # hide library warnings and progress bars
 
 import torch
 from transformers import (
@@ -21,7 +22,7 @@ from transformers import (
 
 from common.triage import (
     load_tickets, build_prompt, generate_predictions,
-    score, print_scores, save_result, param_report, OUT_DIR,
+    score, print_scores, save_result, param_report, plain_progress, OUT_DIR,
 )
 
 BASE_MODEL = "distilgpt2"
@@ -33,7 +34,7 @@ N_EVAL = 20
 # STEP 1 - Load the model and its tokenizer (turns text into tokens)
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 1: Load model and tokenizer")
+print("STEP 1: Load the model and its tokenizer (splits text into tokens)")
 print("=" * 70)
 
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
@@ -48,15 +49,17 @@ model.resize_token_embeddings(len(tokenizer))
 param_report(model, "distilgpt2 (full fine-tuning)")
 
 print(f"""
-  100% trainable. Hold on to that number -- in Lab 3 it becomes about 2.3%.
+  Training will change 100% of these numbers. Remember that: in Lab 3 it
+  drops to about 2.3%.
 
-  Why a dedicated <|pad|> token instead of reusing EOS?
-  The collator in Step 3 sets every PAD position in the labels to -100 so
-  padding does not contribute to the loss. If PAD and EOS are the same token
-  id, that also erases every real EOS from the labels -- the model never
-  learns where to stop, and generation runs on forever. Two distinct tokens,
-  one bug avoided.
-    pad id = {tokenizer.pad_token_id}, eos id = {tokenizer.eos_token_id}
+  Why we added a new padding token:
+  Short examples are filled out with a padding token so that a group of
+  examples all have the same length, and padding is skipped when the model
+  is graded. GPT-2 has no padding token, and a common shortcut is to reuse
+  its end-of-text token. But then every real end-of-text would be skipped in
+  grading too, and the model would never learn where to stop. So we add a
+  separate one:
+    padding token = {tokenizer.pad_token_id}    end-of-text token = {tokenizer.eos_token_id}
 """)
 
 
@@ -64,7 +67,7 @@ print(f"""
 # STEP 2 - Join the prompt and answer into one training example, as tokens
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 2: Tokenize the dataset")
+print("STEP 2: Build one training text per ticket, then split it into tokens")
 print("=" * 70)
 
 ds = load_tickets()
@@ -72,21 +75,24 @@ ds = load_tickets()
 
 def tokenize(example):
     # TODO 1: build the full training text -- the prompt, then the correct
-    #         label, then the end token (eos_token) so the model learns
-    #         where to stop. Then turn it into tokens, cut off at 192.
+    #         answer, then the end-of-text token (tokenizer.eos_token) so the
+    #         model learns where to stop. Then split it into tokens, keeping
+    #         at most 192.
     text = ""
     return tokenizer(text, truncation=True, max_length=192)
 
 
 tokenized = ds.map(tokenize, remove_columns=ds["train"].column_names)
-print(tokenized)
-print(f"\n  First example decoded back:\n")
+print(f"\n  {len(tokenized['train'])} training examples ready.")
+print("\n  One training example, exactly as the model will see it:\n")
 print(tokenizer.decode(tokenized["train"][0]["input_ids"]))
 
 print("""
-  Note what we did NOT do: mask the prompt. In plain causal-LM fine-tuning the
-  model is graded on predicting every token, ticket text included. Lab 3 masks
-  the prompt out of the loss -- watch for the difference.
+  <|endoftext|> is the end-of-text token. It teaches the model where to stop.
+
+  In this lab the model is graded on every word of that text -- the ticket as
+  well as the triage line. Lab 3 grades only the triage line. Watch for the
+  difference.
 """)
 
 
@@ -94,43 +100,47 @@ print("""
 # STEP 3 - Group examples into batches and pad them to equal length
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 3: Build the data collator")
+print("STEP 3: Group examples and pad them to the same length")
 print("=" * 70)
 
 # TODO 2: build the batching helper (collator) for a model that writes
 #         text left to right -- that is what mlm=False means.
 collator = None
 batch = collator([tokenized["train"][i] for i in range(4)])
-# Pick the SHORTEST row in the batch -- that is the one that actually got
-# padded, so it is the one where you can see -100 appear.
+# Pick the SHORTEST example in the group -- it is the one that got padded.
 r = min(range(4), key=lambda i: len(tokenized["train"][i]["input_ids"]))
-print(f"\n  batch input_ids : {tuple(batch['input_ids'].shape)}")
-print(f"  batch labels    : {tuple(batch['labels'].shape)}")
-print(f"  padded positions in labels are set to -100 (ignored by the loss):")
-print(f"  input_ids tail : {batch['input_ids'][r][-8:].tolist()}")
-print(f"  labels tail    : {batch['labels'][r][-8:].tolist()}")
-print(f"\n  The EOS token (id {tokenizer.eos_token_id}) survives in the labels -- that is")
-print(f"  what teaches the model to stop. Had we aliased PAD to EOS, every one")
-print(f"  of those would read -100 instead.")
-print("\n  mlm=False means causal language modelling -- predict the NEXT token.")
+ids = batch["input_ids"][r].tolist()
+graded = batch["labels"][r].tolist()
+# Show the spot where the real text ends and the padding begins.
+end = ids.index(tokenizer.pad_token_id) if tokenizer.pad_token_id in ids else len(ids)
+start = max(0, end - 3)
+print(f"\n  4 examples grouped together, each now {len(ids)} tokens long.")
+print("  Where the shortest one ends and its padding begins:")
+print(f"    tokens       : {ids[start:start + 8]}")
+print(f"    what's graded: {graded[start:start + 8]}")
+print(f"""
+  -100 means "skip this one when grading". The padding ({tokenizer.pad_token_id}) is
+  skipped. The end-of-text token ({tokenizer.eos_token_id}) is still graded -- that is
+  what teaches the model to stop.""")
 
 
 # ==========================================================================
 # STEP 4 - Training settings
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 4: Configure training")
+print("STEP 4: Choose the training settings")
 print("=" * 70)
 
 # TODO 3: fill in the training settings: 2 passes over the data (epochs),
 #         8 examples per batch, learning rate 3e-4 that slowly shrinks
-#         (cosine), a progress line every 5 steps, no checkpoint saving,
-#         no outside reporting tools, and CPU only.
+#         (cosine), a loss report every 5 steps, no saving copies along the
+#         way, no outside tracking tools, and CPU only.
 args = TrainingArguments(
     output_dir=OUTPUT_DIR,
 )
-print(f"\n  epochs={args.num_train_epochs}  batch={args.per_device_train_batch_size}  "
-      f"lr={args.learning_rate}")
+print(f"\n  {args.num_train_epochs:.0f} passes through the data, "
+      f"{args.per_device_train_batch_size} examples per step, "
+      f"learning rate {args.learning_rate}")
 
 
 # ==========================================================================
@@ -147,12 +157,13 @@ trainer = Trainer(
     args=args,
 )
 
+plain_progress(trainer)   # one plain line per loss report, no progress bar
 t0 = time.time()
 result = trainer.train()
 elapsed = time.time() - t0
 
 print(f"\n  Trained in {elapsed:.0f}s")
-print(f"  Final training loss: {result.training_loss:.4f}")
+print(f"  Average loss over the whole run: {result.training_loss:.4f}  (lower is better)")
 
 
 # ==========================================================================
@@ -182,7 +193,7 @@ print("""
 # STEP 7 - Score the trained model
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 7: Evaluate the fine-tuned model")
+print("STEP 7: Score the fine-tuned model")
 print("=" * 70)
 
 eval_rows = list(ds["eval"])[:N_EVAL]
@@ -199,8 +210,8 @@ save_result("fullft_distilgpt2", s, {
 print("""
   Compare with Lab 1's best-prompt score -- the score to beat.
 
-  Expect "right format" to jump dramatically -- the model learned the form
-  of the answer almost immediately. "category correct" will be much weaker.
-  82M parameters can learn a format; learning to actually reason about which
-  category a ticket belongs to needs a bigger model. That is Lab 3.
+  Expect "right format" to jump -- the model learns the shape of the answer
+  almost at once. "category correct" will be much lower. A model with 82
+  million numbers can learn a format; working out which category a ticket
+  belongs to needs a bigger model. That is Lab 3.
 """)
