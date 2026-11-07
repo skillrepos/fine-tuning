@@ -76,7 +76,7 @@
         "title": "Hand the data to the Trainer",
         "note": [
           "**Gives the Trainer the tokenized tickets, the collator, and the tokenizer.**",
-          "- The tokenizer goes in `processing_class=` (older examples online use `tokenizer=` here; that name no longer works)"
+          "- The tokenizer goes in `processing_class=`"
         ]
       }
     ],
@@ -277,7 +277,7 @@
         "title": "Hand the data to the Trainer",
         "note": [
           "**Gives the Trainer the tokenized tickets, the collator, and the tokenizer.**",
-          "- The tokenizer goes in `processing_class=` (older examples online use `tokenizer=` here; that name no longer works)"
+          "- The tokenizer goes in `processing_class=`"
         ],
         "lines": 5
       }
@@ -323,7 +323,7 @@
           "**Same Trainer as Lab 2, but now it trains only the adapters.**",
           "- Padding is marked -100 too, so filler is never graded"
         ],
-        "lines": 5
+        "lines": 6
       }
     ],
     "finetune/lab4_qlora.py": [

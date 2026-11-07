@@ -62,7 +62,7 @@
     ],
     [
       "trainer = Trainer(\n",
-      "# TODO 4: build the Trainer from the model with adapters, the training data,\n#         and the padding helper (collator) above.\ntrainer = Trainer(\n"
+      "# TODO 4: build the Trainer from the model with adapters, the training data,\n#         the padding helper (collator) above, and the tokenizer (passed as\n#         processing_class=).\ntrainer = Trainer(\n"
     ],
     [
       "    train_dataset=tokenized[\"train\"],\n    data_collator=collator,\n    processing_class=tokenizer,\n",

@@ -175,7 +175,8 @@ args = TrainingArguments(
 collator = DataCollatorForSeq2Seq(tokenizer, padding=True, label_pad_token_id=-100)
 
 # TODO 4: build the Trainer from the model with adapters, the training data,
-#         and the padding helper (collator) above.
+#         the padding helper (collator) above, and the tokenizer (passed as
+#         processing_class=).
 trainer = Trainer(
     model=peft_model,
     args=args,

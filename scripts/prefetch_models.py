@@ -21,7 +21,7 @@ import sys
 MODELS = [
     ("distilgpt2", "Labs 1-2, ~350 MB"),
     ("HuggingFaceTB/SmolLM2-360M-Instruct", "Labs 1, 3, 4, 5, ~1.4 GB"),
-    ("TinyLlama/TinyLlama-1.1B-Chat-v1.0", "Lab 4 Step 8, ~2.2 GB"),
+    ("TinyLlama/TinyLlama-1.1B-Chat-v1.0", "Lab 4's STEP 8, ~2.2 GB"),
 ]
 
 DATASETS = [

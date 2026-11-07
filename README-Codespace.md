@@ -49,11 +49,11 @@ It checks the installed libraries, that all three models are downloaded, that
 4-bit training (Lab 4) works, and whether the optional Groq key is set. The last
 line should be `RESULT: ready for the workshop.`
 
-## Optional: Groq key for Lab 5 Step 6
+## Optional: Groq key for Lab 5's STEP 6
 
 No step in this workshop *requires* a key. The one optional step that uses Groq
 is set up by a script — **you do not need to create any GitHub or Codespaces
-secrets.** Follow [README.md, "Optional: a free Groq API key"](README.md#optional-a-free-groq-api-key-for-lab-5-step-6),
+secrets.** Follow [README.md, "Optional: a free Groq API key"](README.md#optional-a-free-groq-api-key-for-lab-5s-step-6),
 which comes down to:
 
 ```

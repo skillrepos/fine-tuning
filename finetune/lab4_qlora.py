@@ -275,9 +275,9 @@ base = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.bfloat16)
 #         so it becomes one ordinary model again.
 merged = base
 
-print(f"  adapter wrapper still on    : {'yes' if type(merged).__name__.startswith('Peft') else 'no'}")
+print(f"  still needs the adapter library : {'yes' if type(merged).__name__.startswith('Peft') else 'no'}")
 lora_left = [n for n, _ in merged.named_modules() if "lora" in n.lower()]
-print(f"  separate adapter pieces left: {len(lora_left)}")
+print(f"  separate adapter pieces left    : {len(lora_left)}")
 
 merged.save_pretrained(MERGED_DIR)
 tokenizer.save_pretrained(MERGED_DIR)

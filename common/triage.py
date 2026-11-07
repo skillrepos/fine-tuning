@@ -313,7 +313,7 @@ def score(preds, rows):
 
 
 def print_scores(name, s):
-    print(f"\n  === {name} (n={s['n']}) ===")
+    print(f"\n  === {name} ({s['n']} tickets) ===")
     print(f"    right format     : {s['schema_valid']:6.1%}")
     print(f"    category correct : {s['category_acc']:6.1%}")
     print(f"    priority correct : {s['priority_acc']:6.1%}")

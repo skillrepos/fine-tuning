@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Set your Groq API key for this terminal AND every terminal you open later.
 #
-# The key is only needed for the OPTIONAL Lab 5 Step 6 comparison. Every other
+# The key is only needed for the OPTIONAL comparison in Lab 5's STEP 6. Every other
 # lab runs without it.
 #
 #   source scripts/setup-key.sh            # prompts you to paste the key
@@ -37,7 +37,7 @@ _gk_main() {
   case "$key" in
     gsk_*) ;;
     *) echo "Warning: Groq keys normally start with 'gsk_'. Saving it anyway -"
-       echo "         if Lab 5 Step 6 reports an authentication error, re-check it." ;;
+       echo "         if Lab 5's STEP 6 reports an authentication error, re-check it." ;;
   esac
 
   # 1) This terminal.

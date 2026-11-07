@@ -107,8 +107,8 @@ if not os.path.isdir(LORA_DIR):
     print(f"""
   No adapter found at {LORA_DIR}.
 
-  Steps 2-4 need the adapter Lab 3 saves. Go back and run Lab 3, then rerun
-  this script. Steps 1, 5 and 6 do not need it.
+  STEPS 2-4 need the adapter Lab 3 saves. Go back and run Lab 3, then rerun
+  this script. STEPS 1, 5 and 6 do not need it.
 """)
     raise SystemExit(0)
 

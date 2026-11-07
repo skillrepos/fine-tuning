@@ -326,6 +326,8 @@ copies.
 trained 82M model wins on category and queue — **a small trained model beats a
 bigger prompted one.** Priority doesn't move.
 
+![Lab 2 scores](./images/ft-lab2-scores.png?raw=true "Lab 2 scores after full fine-tuning")
+
 <br><br>
 
 10. **Discussion — when would you retrain everything?** When you have a very
@@ -439,6 +441,8 @@ plus one small adapter file per task or customer.
 9. Look at **STEP 8** and compare the scores with Lab 2's — category accuracy
 should be clearly better. (The model changed too, so this shows the workshop's
 progress, not how much LoRA alone helped.)
+
+![Lab 3 scores](./images/ft-lab3-scores.png?raw=true "Lab 3 scores after LoRA training")
 
 <br><br>
 
@@ -706,6 +710,8 @@ training does — not what 4-bit costs in quality.
 common mix-ups (true category → predicted category). An overall score tells you
 *whether* there is a problem; this tells you *where*. When one category drags the
 average down, the usual fix is more training examples for that category.
+
+![Lab 5 scores by category](./images/ft-lab5-categories.png?raw=true "Scores for each category, and the most common mix-ups")
 
 <br><br>
 

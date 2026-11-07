@@ -34,7 +34,7 @@ support tickets into one strict line in a made-up company's own format.
 | Account | Needed? | Why |
 |---|---|---|
 | **GitHub** (free) | **Yes** | To run the workshop's Codespace. Sign up at <https://github.com/signup> if you do not have one. |
-| **Groq** (free, no credit card) | Optional | Only for Lab 5's optional Step 6. See [below](#optional-a-free-groq-api-key-for-lab-5-step-6). |
+| **Groq** (free, no credit card) | Optional | Only for Lab 5's optional STEP 6. See [below](#optional-a-free-groq-api-key-for-lab-5s-step-6). |
 
 
 <br>
@@ -118,7 +118,7 @@ More detail and fixes for common problems: [README-Codespace.md](README-Codespac
 
 ---
 
-## Optional: a free Groq API key for Lab 5 Step 6
+## Optional: a free Groq API key for Lab 5's STEP 6
 
 Lab 5 ends with an **optional** step that compares your fine-tuned model against a
 very large model hosted by Groq. It needs a free Groq API key. **Every other lab
@@ -268,8 +268,8 @@ double every training time in `labs.md`.
 
 **`Killed` during Lab 4.**
 Out of memory. Close other running processes and re-run; Lab 4 briefly holds
-two models (Step 6 reloads the 16-bit base to fold the adapter into, and Step 8 loads
-TinyLlama). If it persists, drop `QLORA_BATCH` from 2 to 1 and skip Step 8.
+two models (STEP 6 reloads the 16-bit base to fold the adapter into, and STEP 8 loads
+TinyLlama). If it persists, drop `QLORA_BATCH` from 2 to 1 and skip STEP 8.
 
 **Lab 4 fails to load the model in 4-bit.**
 Run `python scripts/verify_setup.py` — its 4-bit check tells you whether this

@@ -213,13 +213,13 @@ Any `FAIL` line tells you what to fix. `WARN` lines are optional.
 
 <br>
 
-## 10. (Optional) Set up a Groq key for Lab 5 Step 6
+## 10. (Optional) Set up a Groq key for Lab 5's STEP 6
 
 Lab 5 has one **optional** step that compares your model against a large hosted
 model on Groq. It needs a free Groq API key. Every other lab runs without one.
 
 To get a key, follow the screenshots in **[README.md, "Optional: a free Groq API
-key"](README.md#optional-a-free-groq-api-key-for-lab-5-step-6)**. Then, in
+key"](README.md#optional-a-free-groq-api-key-for-lab-5s-step-6)**. Then, in
 PowerShell (with `(.venv)` active):
 
 ```
