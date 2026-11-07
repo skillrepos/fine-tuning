@@ -1,22 +1,13 @@
 """
 Lab 4 - QLoRA: LoRA on a model stored in 4 bits, then export the result.
 
-LoRA (Lab 3) cut down how much of the model trains. But the whole model still
-has to sit in memory, at 2 or 4 bytes per number.
+LoRA (Lab 3) cut down how much of the model trains, but the whole model still
+sits in memory at 2 or 4 bytes per number. QLoRA stores the frozen (unchanging)
+model at 4 bits per number and trains ordinary LoRA adapters on top of it.
 
-QLoRA shrinks that too: it stores the frozen (unchanging) model at 4 bits per
-number and trains ordinary LoRA adapters on top of it.
-
-READ THIS BEFORE YOU RUN IT. This lab is about how QLoRA works and how much
-memory it saves, not about answer quality. We train for only 4 steps, and the
-lab measures why: on a CPU, each 4-bit step is about 20-30 times slower than
-Lab 3's, so a Lab 3-sized run would take over an hour. QLoRA is meant for
-graphics cards (GPUs), where its memory savings pay off.
-
-What you WILL come away with: the 4-bit memory numbers, proof that training
-still works on top of a 4-bit model, the right way to fold the adapter in
-and save one standalone model (a step many people get wrong), and a bigger
-model loaded at 4 bits to show what the memory savings make possible.
+This lab is about how QLoRA works and how much memory it saves, not about
+answer quality. It trains for only 4 steps: on a CPU each 4-bit step is about
+20-30 times slower than Lab 3's. QLoRA saves memory, not time.
 """
 
 import sys, os, gc, json, time
@@ -93,13 +84,7 @@ nf4_mb = model_size_mb(model)
 print(f"\n  at 4 bits (0.5 byte each): {nf4_mb:8,.0f} MB")
 print(f"  That is {bf16_mb / nf4_mb:.1f}x smaller than 16 bits, "
       f"and {bf16_mb * 2 / nf4_mb:.1f}x smaller than 32 bits.")
-print("""
-  Not the full 8x you might expect from 32 bits down to 4. The parts that
-  turn words into numbers and back stay at full size, and every group of 64
-  numbers also stores one extra number to scale them. In a small model those
-  extras are a big share of the total; the bigger the model, the closer you
-  get to 8x.
-""")
+print("  (Not 8x: some parts of the model stay at full size.)")
 
 
 # ==========================================================================
@@ -114,20 +99,7 @@ print(f"\n  layer type        : {type(layer).__name__}  (a 4-bit layer)")
 print(f"  stored as         : whole bytes, {layer.weight.shape[0]:,} rows x {layer.weight.shape[1]} column")
 print(f"  4-bit format      : {layer.weight.quant_state.quant_type}")
 print(f"  numbers per group : {layer.weight.quant_state.blocksize}")
-print("""
-  Two 4-bit numbers are packed into each byte, which is why the layer is
-  stored as one long column. The numbers are kept in groups of 64, each with
-  its own scale, so one unusually large number can't throw off all the rest.
-  The "nf4" format places its 16 possible values where a trained model's
-  numbers actually tend to fall.
-
-  The catch, which STEP 5 will measure: 4 bits saves MEMORY but, on a CPU,
-  costs a lot of SPEED. Before every calculation the numbers have to be
-  unpacked back to 16 bits, and the 4-bit library has no fast way to do that
-  on a CPU -- it was built for graphics cards (GPUs). On a GPU that is short
-  of memory, this saving is what makes training possible at all. Here, on a
-  CPU, it is a demonstration.
-""")
+print("\n  -> Two 4-bit numbers per byte, kept in groups of 64, each with its own scale.")
 
 
 # ==========================================================================
@@ -144,7 +116,7 @@ peft_config = LoraConfig(
     r=16,
     lora_alpha=32,
 )
-print("\n  Same LoRA settings as Lab 3. The only change: the model underneath is 4-bit.")
+print("\n  Same LoRA settings as Lab 3; only the model underneath is 4-bit.")
 
 model = get_peft_model(model, peft_config)
 param_report(model, "SmolLM2-360M, 4-bit, with LoRA adapters")
@@ -157,17 +129,7 @@ print("\n" + "=" * 70)
 print(f"STEP 5: Train {QLORA_STEPS} steps on top of the 4-bit model "
       f"(about 3 minutes)")
 print("=" * 70)
-print("""
-  Four steps is not real training. It is a quick test that answers two
-  questions:
-
-    1. Can training still reach the adapters through a model stored at
-       4 bits? (If not, QLoRA could not work.)
-    2. How long does one 4-bit training step take on this machine,
-       compared with Lab 3?
-
-  We answer question 2 with a stopwatch.
-""")
+print(f"\n  {QLORA_STEPS} steps is a quick test, not real training.")
 
 ds = load_tickets()
 
@@ -227,9 +189,7 @@ if os.path.exists(results_path):
 if lab3.get("train_seconds") and lab3.get("steps"):
     lora_s_per_step = lab3["train_seconds"] / lab3["steps"]
     print(f"  Lab 3, 8 examples per step : {lora_s_per_step:5.1f} seconds per step")
-    print(f"\n  Each 4-bit step took {qlora_s_per_step / lora_s_per_step:.0f}x as long, "
-          f"and handled a quarter as many examples.")
-    print(f"  Per example, 4 bits is about "
+    print(f"  -> per example, 4 bits is about "
           f"{(qlora_s_per_step / QLORA_BATCH) / (lora_s_per_step / 8):.0f}x slower here.")
 else:
     print("  (Run Lab 3 first to get its timing to compare with.)")
@@ -243,19 +203,8 @@ adapter_mb = sum(
 ) / 1024 ** 2
 print(f"\n  Adapter saved to {ADAPTER_DIR}  ({adapter_mb:.1f} MB)")
 
-print("""
-  The loss changed, so training did reach the adapters through the 4-bit
-  model. Question 1: yes, QLoRA works.
-
-  Question 2 is the number to take back to your team. On a graphics card
-  (GPU) the unpacking is fast, and the QLoRA paper reports it as roughly a
-  third slower than ordinary 16-bit LoRA -- in exchange for fitting a
-  65-billion-number model on one 48 GB card. On a CPU there is no fast way,
-  so you pay the full cost.
-
-  The rule: use QLoRA when memory is what stops you. If the model already
-  fits, plain LoRA is faster.
-""")
+print("\n  -> The loss fell, so training works at 4 bits -- just slowly on a CPU.")
+print("     QLoRA saves memory, not time.")
 
 del model, trainer
 gc.collect()
@@ -268,7 +217,7 @@ print("\n" + "=" * 70)
 print("STEP 6: Fold the adapter into the model and save one standalone copy")
 print("=" * 70)
 
-print("\n  Reloading the model at 16 bits (NOT 4 bits) to fold the adapter into...")
+print("\n  Reloading at 16 bits (NOT 4 bits)...")
 base = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.bfloat16)
 # TODO 3: attach the saved adapter to the normal 16-bit model with
 #         PeftModel.from_pretrained, then fold the adapter into the model
@@ -288,29 +237,15 @@ merged_mb = sum(
 ) / 1024 ** 2
 print(f"  {MERGED_DIR}: {merged_mb:,.0f} MB  (vs {adapter_mb:.1f} MB for the adapter alone)")
 
-print("""
-  This is the step people most often get wrong.
-
-  We trained on top of a 4-bit copy of the model, but folded the adapter into
-  a 16-bit copy. Folding it into the 4-bit copy would lock the small rounding
-  errors of 4-bit storage into the model for good. So: train at 4 bits, fold
-  into a full-size copy, then shrink the result again if you need to.
-
-  The folded-in model needs no extra library and no separate adapter file --
-  it is one ordinary model folder. What you give up is Lab 3's trick of one
-  shared model plus a small adapter per task or customer. Pick whichever
-  suits how you will use it.
-
-  These save steps are the same whether the adapter trained for 4 steps or
-  4,000. What our 4-step adapter actually learned is another matter -- STEP 7.
-""")
+print("\n  -> Folded into a 16-bit copy, not the 4-bit one, so its rounding errors")
+print("     are not locked in. The result is one ordinary model folder.")
 
 
 # ==========================================================================
 # STEP 7 - Score it: what 4 steps of training got us (not much)
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 7: Score the folded-in model -- and read it honestly")
+print("STEP 7: Score the folded-in model")
 print("=" * 70)
 
 eval_rows = list(load_tickets()["eval"])[:N_EVAL]
@@ -334,21 +269,8 @@ save_result("qlora_smollm2", s, {
 del merged, base
 gc.collect()
 
-print("""
-  Those scores are poor, and they are supposed to be. The model saw only 8
-  examples in total -- that is not fine-tuning. Don't read this as "QLoRA is
-  worse than LoRA". Read it as: the number of training steps matters more
-  than any other setting we have talked about today.
-
-  A fair quality comparison -- same model, same data, same settings, 24 steps,
-  32-bit vs 4-bit -- is worth doing. It is also about 70 minutes on a CPU, so
-  it is homework, not a lab: set QLORA_STEPS = 24 and QLORA_BATCH = 8, run it
-  overnight, and compare with Lab 3's row in out/results.json.
-
-  If you want the expected answer first: the QLoRA paper found 4-bit training
-  matched 16-bit LoRA quality on its tests. 4 bits trades speed for memory,
-  not quality for memory.
-""")
+print(f"\n  -> Poor on purpose: {QLORA_STEPS * QLORA_BATCH} examples is not training.")
+print("     The fair 24-step comparison is homework (end of Lab 4 in labs.md).")
 
 
 # ==========================================================================
@@ -371,23 +293,5 @@ big_nf4_mb = model_size_mb(big)
 print(f"\n  numbers in TinyLlama  : {big_params:,}")
 print(f"  at 32 bits would be   : {big_params * 4 / 1024 ** 2:8,.0f} MB")
 print(f"  at 4 bits, measured   : {big_nf4_mb:8,.0f} MB")
-print(f"""
-  This is the main takeaway, and it holds on any hardware. A model with 1.1
-  billion numbers now takes less memory than the 360-million-number model did
-  in Lab 3 at 32 bits. Storing at 4 bits lets the same machine fine-tune a
-  model about three times bigger.
-
-  On a GPU you would start training now. Here we stop: going by STEP 5's
-  timing, one 4-bit step of a model this size would take minutes on a CPU.
-
-  OPTIONAL, AT HOME ON A GPU: set BASE_MODEL to TinyLlama and nothing else in
-  this file has to change -- TinyLlama names its layers the same way SmolLM2
-  does, so the target_modules list still matches. That is the real promise of
-  QLoRA: not speed, but code that barely changes as the model grows.
-
-  For "microsoft/Phi-3-mini-4k-instruct" (3.8 billion numbers) you need ONE
-  more edit, because Phi-3 names its layers differently: target_modules
-  becomes ["qkv_proj", "o_proj", "gate_up_proj", "down_proj"]. Keep the old
-  names and the PEFT library stops with an error saying no layers matched --
-  the same layer-name check as Lab 3's STEP 2.
-""")
+print("\n  -> A model 3x bigger now fits in less memory than Lab 3's did at 32 bits.")
+print("     On a GPU you would train it now.")

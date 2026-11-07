@@ -1,6 +1,6 @@
 # Fine-Tuning Small AI Models: LoRA, QLoRA & Evaluation
 
-## Revision 1.11 - 11/06/26
+## Revision 1.12 - 11/07/26
 
 **Workshop labs**
 
@@ -41,11 +41,8 @@ it open in a second tab if the vocabulary is new to you.
 
 ## **Lab 1 - Preparing a Dataset and Measuring a Baseline**
 
-**Purpose: Turn raw support tickets into training data in the format the
-training tools expect, see how a chat model wraps the same text, and measure
-the best an untrained model can do — first with a bare prompt, then with the
-best prompt we can write. Every later lab is measured against that best-prompt
-score.**
+**Purpose: Turn raw support tickets into training data, and measure the best
+an untrained model can do. Every later lab is measured against that score.**
 
 **Estimated time: 10-12 minutes**
 
@@ -58,10 +55,8 @@ support ticket turned into one strict line:
 category: access-management | priority: P2 | queue: identity-team
 ```
 
-Eight categories, four priorities, six queues. This labeling scheme is
-Northwind's own — no model has ever seen it — which is the kind of task where
-fine-tuning can beat a clever prompt. This lab measures how far a clever prompt
-gets on its own.
+Eight categories, four priorities, six queues — a labeling scheme no model has
+ever seen.
 
 <br><br>
 
@@ -73,10 +68,8 @@ head -3 data/tickets_train.jsonl
 wc -l data/tickets_train.jsonl data/tickets_eval.jsonl
 ```
 
-You should see 281 training rows and 71 test rows, each with a `ticket` and its
-correct `label`. The 71 test tickets are never used for training, so their
-scores show how the model does on tickets it has not seen. (Real projects also
-keep a third set for tuning decisions — more on that in Lab 5.)
+281 training rows and 71 test rows, each a `ticket` and its correct `label`.
+The test tickets are never used for training.
 
 ![Training dataset](./images/ft-1-1.png?raw=true "Training dataset")
 
@@ -88,8 +81,7 @@ keep a third set for tuning decisions — more on that in Lab 5.)
 code finetune/lab1_prep.py
 ```
 
-Scroll through it. The four `# TODO` markers are where code is missing; the file
-won't do anything useful until you merge in the finished code in the next step.
+The four `# TODO` markers are where code is missing.
 
 <br><br>
 
@@ -104,70 +96,50 @@ code -d extra/lab1_prep_complete.txt finetune/lab1_prep.py
 
 <br><br>
 
-4. Run it:
+4. Run it (about 2 minutes). The output is in *STEP* sections, which the next
+lab steps walk through:
 
 ```
 python finetune/lab1_prep.py
 ```
 
-This takes about 2 minutes. The output is formatted as *STEP* sections which we'll look at more closely in the following lab steps.
-
 <br><br>
 
-5. Look at **STEP 1** and **STEP 2**. STEP 1 shows the data loaded as a training
-set and a test set, with their columns and row counts. Each training row already
-includes its correct category and priority (the answer key). STEP 2 counts them
-to show how balanced they are. That balance matters: if one category had 80% of
-the rows, the model would learn to guess that category for everything.
-
+5. Look at **STEP 1** and **STEP 2**: the data loaded, then a count of each
+category and priority. If one category had 80% of the rows, the model would
+learn to guess it for everything.
 
 ![First steps output](./images/ft-1-5.png?raw=true "First steps output")
 
 <br><br>
 
-6. Look at **STEP 3**. The data file has no prompt or completion columns; this
-step builds them from each row. The ticket, wrapped in a short fixed template,
-becomes the *prompt*:
-
-```
-### Ticket:
-Hi team, I cannot sign in to DriverPortal. It says my account is locked...
-
-### Triage:
-```
-
-...and the row's label becomes the answer the model must produce (the
-*completion*). During training the model reads both parts, but we only want to
-grade it on the answer, not on copying the ticket back. Keeping the two parts
-separate is what lets Lab 3 do that.
+6. Look at **STEP 3**. The ticket, inside a fixed template, is the *prompt*;
+the row's label is the *completion* the model must produce. Keeping the two
+apart lets Lab 3 grade only the answer.
 
 ![Step 3 output](./images/ft-1-6.png?raw=true "Step 3 output")
 
 <br><br>
 
 7. Look at **STEP 4**: the same ticket in a chat model's format, wrapped in
-special markers like `<|im_start|>`. Each family of chat models uses its own
-markers. The code lets the model's tokenizer (the tool that turns text into tokens) add
-them for you with `apply_chat_template()`. (Note: The wrong markers don't cause an error, just quietly worse answers.)
+markers like `<|im_start|>`. Each model family has its own markers;
+`apply_chat_template()` adds the right ones.
 
 ![Output with markers](./images/ft-1-7.png?raw=true "Output with markers")
 
 <br><br>
 
-8. Look at **STEP 5**. The tickets are short — around 50-70 tokens (word pieces)
-each. Short examples are a big part of why this workshop can train on an
-ordinary CPU; longer text gets slow very quickly.
+8. Look at **STEP 5**. The tickets are short — around 50-70 tokens (word
+pieces) each — which is why this workshop can train on an ordinary CPU.
 
 <br><br>
 
-9. Now the important part — **STEP 7 and STEP 8**. STEP 7 gives distilgpt2 20
-tickets from the test set with just the bare ticket prompt, and prints the first
-three. Compare each `EXPECTED` line (the correct answer) with the `PREDICTED` line
-(what the model wrote). STEP 8 scores all 20, then prints what random guessing
-would score, on average:
+9. Now **STEP 7 and STEP 8**. STEP 7 gives distilgpt2 20 test tickets with
+just the bare ticket prompt — compare each `EXPECTED` line with `PREDICTED`.
+STEP 8 scores all 20, next to what random guessing would score:
 
 ```
-  === BASELINE - distilgpt2, no training (n=20) ===
+  === BASELINE - distilgpt2, no training (20 tickets) ===
     right format     :   0.0%
     category correct :   0.0%
     priority correct :   0.0%
@@ -182,24 +154,17 @@ would score, on average:
 
 ![Lab 1 baseline scores](./images/ft-lab1-baseline.png?raw=true "Bare-prompt scores next to random guessing")
 
-**How the scores are measured.** `right format` asks whether the answer's first
-line is exactly `category: ... | priority: ... | queue: ...`. The other three ask
-whether the answer names the right category, priority or queue anywhere, in any
-form — `Category: billing-inquiry` on its own line still counts. Each score is
-the share of the 20 answers that earned it.
-
-distilgpt2 is a **base** model: it was only trained to continue text, so it
-keeps writing sentences and never names a category. Scoring below random
-guessing just means nobody told it the task — so 0% is a poor bar to measure
-training against.
+`right format` requires the first line to be exactly
+`category: ... | priority: ... | queue: ...`; the other three count the right
+answer anywhere, in any form. distilgpt2 is a **base** model, trained only to
+continue text, so it never names a category. 0% means nobody told it the task —
+a poor bar.
 
 <br><br>
 
-10. Look at **STEP 9**, the fair bar. It gives SmolLM2-360M-**Instruct** (the
-model Labs 3 and 4 train, built to follow instructions) the best prompt we could
-write: every category, priority and queue, the routing rules, the exact answer
-format, and eight worked examples (one ticket per category, with its correct
-answer). No training. The table at the end puts all three side by side:
+10. Look at **STEP 9**, the fair bar: SmolLM2-360M-**Instruct** (the model
+Labs 3 and 4 train) given the best prompt we could write — every label, the
+routing rules, the format, eight worked examples — and no training:
 
 ```
   score                random  bare prompt  best prompt
@@ -212,24 +177,21 @@ answer). No training. The table at the end puts all three side by side:
 
 ![Lab 1 best-prompt baseline](./images/ft-lab1-bestprompt.png?raw=true "Random guessing, bare prompt and best prompt side by side")
 
-The format is now perfect, but fewer than 1 category in 3 is right — the model
-answers `software-bug` for nearly half the tickets. **The best-prompt column is the score
-every later lab has to beat.**
+The format is now perfect, but fewer than 1 category in 3 is right. **The
+best-prompt column is the score every later lab has to beat.**
 
 <br><br>
 
-11. **Discussion — then why fine-tune at all?** Look at the prompt size STEP 9
-printed: about 700 tokens, sent and paid for on every request, compared with
-about 50 for the bare prompt. Fine-tuning tries to build that knowledge into
-the model instead, so a short prompt is enough. The rest of the workshop asks
-whether training beats the best prompt, and by how much.
+11. **Discussion — then why fine-tune at all?** That prompt is about 700
+tokens, sent and paid for on every request, against about 50 for the bare
+prompt. Fine-tuning builds that knowledge into the model instead — if it can
+beat the best prompt. That is the question for the rest of the workshop.
 
 <br><br>
 
 12. **Optional (about 4 minutes).** Change `N_EVAL = 20` near the top of
-`finetune/lab1_prep.py` to `40` and rerun. The run takes about twice as long and
-the scores shift a little: more test tickets give a more reliable score, at the
-cost of time. Put it back to `20` and run it once more, so Lab 5 compares
+`finetune/lab1_prep.py` to `40` and rerun: more test tickets, a more reliable
+score, more time. Then put it back to `20` and rerun, so Lab 5 compares
 20-ticket scores.
 
 <p align="center">**[END OF LAB]**</p></br></br>
@@ -282,12 +244,12 @@ trained: `100.0000%`. Remember that number; in Lab 3 the same line reads about
 
 <br><br>
 
-5. Read the padding-token note in **STEP 1**. It avoids a common bug. Training
-examples have different lengths, so shorter ones are filled out with a
-*padding* token. GPT-2 models have none, and many tutorials reuse the
-*end-of-text* token for it. But padding is left out of the grading — so if the
-two share a token, the real end-of-text tokens are left out too, and the model
-never learns to stop. Two different tokens avoid that.
+5. STEP 1 also prints two token numbers: the *padding* token (filler that
+makes a group of examples the same length) and the *end-of-text* token (the
+stop signal). GPT-2 has no padding token, and many tutorials reuse the
+end-of-text token for it. But padding is left out of the grading — so the model
+would never be graded on stopping, and never learn to. Two different tokens
+avoid that.
 
 <br><br>
 
@@ -305,11 +267,10 @@ while the end-of-text token (50256) is still graded.
 <br><br>
 
 7. Watch the training loss — how wrong the model's guesses are — fall from
-about 5 at the start to below 1 by the end. If it stays flat or jumps around, the learning
-rate (step size) is usually the problem. Note that a falling loss only shows the
-model is learning its training examples; the test scores in STEP 7 show whether
-that works on new tickets. (The "Average loss over the whole run" line is just
-that, so it is higher than the last few values.)
+about 5 at the start to below 1 by the end. If it stays flat or jumps around,
+the learning rate (step size) is usually the problem. A falling loss only shows
+the model is learning its training examples; the test scores in STEP 7 show
+whether that works on new tickets.
 
 ![Lab 2 training loss falling](./images/ft-lab2-training.png?raw=true "Training loss during full fine-tuning")
 
@@ -331,10 +292,9 @@ bigger prompted one.** Priority doesn't move.
 <br><br>
 
 10. **Discussion — when would you retrain everything?** When you have a very
-large dataset (tens of thousands of examples), need the model to learn genuinely
-new abilities rather than a new output style, and can afford the time and the
-storage for a full copy per version. For most business work, the next two labs
-are the better trade.
+large dataset, need the model to learn new abilities rather than a new output
+style, and can afford a full copy per version. For most business work, the
+next two labs are the better trade.
 
 <br><br>
 
@@ -359,10 +319,9 @@ as a small add-on file instead of a whole new copy of the model.**
 <br><br>
 
 **The idea in plain words.** Lab 2 retrained every number inside the model.
-LoRA leaves the model untouched and trains a small add-on beside it, called an
-*adapter*, that adjusts its answers. The adapter is about 2% the size of the
-model, so training needs far less memory and the saved result is tens of
-megabytes, not a whole new model. (The math is on the LoRA slides.)
+LoRA leaves the model untouched and trains a small add-on beside it, an
+*adapter*, about 2% of the model's size — so training needs less memory and the
+saved result is tens of megabytes.
 
 <br><br>
 
@@ -390,51 +349,46 @@ code -d extra/lab3_lora_complete.txt finetune/lab3_lora.py
 python finetune/lab3_lora.py
 ```
 
-4. Look at **STEP 2**. It lists the layers inside this model where LoRA can
-attach adapters. The names differ between kinds of model, so always use the
-ones the model itself reports — a list copied from another model can quietly
-miss layers.
+<br><br>
+
+4. Look at **STEP 2**. It lists the layers where LoRA can attach adapters. The
+names differ between kinds of model, so always use the ones the model itself
+reports.
 
 <br><br>
 
-5. Look at **STEP 3 and STEP 4**. Two settings worth knowing:
-
-- **`r` (rank)** — the size of the adapter. Bigger can learn more, but trains
-  slower. 8-16 suits a new format or style; 32-64 suits new behavior.
-- **`lora_alpha`** — how strongly the adapter's adjustments count. The usual
-  rule is twice `r` (here 16 and 32).
-
-Then find the line STEP 4 prints, ending in `(2.3437%)` or close to it. That
-is how much of the model will be trained. Lab 2 trained 100%. (STEP 1 also shows
-100%, because that is before the adapters are added.)
+5. Look at **STEP 3 and STEP 4**. Two settings worth knowing: **`r`** (rank)
+is the adapter's size — bigger learns more but trains slower; 8-16 suits a new
+format, 32-64 new behavior. **`lora_alpha`** is how strongly the adapter counts,
+usually twice `r`. Then find the line STEP 4 prints ending in `(2.3437%)` or
+close to it: how much of the model will be trained. Lab 2 trained 100%.
 
 ![Lab 3 trainable parameter percentage](./images/ft-lab3-trainable.png?raw=true "LoRA trains about 2% of the parameters")
 
 <br><br>
 
-6. Look at **STEP 5**. This is the other big change from Lab 2: the model is
-now graded only on its answer. In the training data, every position that
-belongs to the ticket is marked `-100`, which means "don't grade this":
+6. Look at **STEP 5**, the other big change from Lab 2: the model is graded
+only on its answer. Every position that belongs to the ticket is marked `-100`,
+"don't grade this":
 
 ```
 labels = [-100] * len(prompt_ids) + full_ids[len(prompt_ids):]
 ```
 
 The script prints something like `53 tokens, 36 from the prompt (not graded),
-17 graded`. In Lab 2 the model was also graded on repeating the ticket back —
-wasted effort for a small model.
+17 graded`. Lab 2 also graded the model on repeating the ticket back.
 
 <br><br>
 
-7. Watch the training loss — how wrong the model's guesses are — fall as it
-trains. This lab uses a bigger learning rate (step size) than Lab 2, `1e-3`
-instead of `3e-4`, which is safe because only the small adapter is changing.
+7. Watch the training loss fall. This lab uses a bigger learning rate (step
+size) than Lab 2, `1e-3` instead of `3e-4`, which is safe because only the
+small adapter is changing.
 
 <br><br>
 
 8. Look at **STEP 7**. The saved adapter is a few tens of MB; a full copy of the
-model would be about 1.4 GB. That is the practical payoff: one shared model,
-plus one small adapter file per task or customer.
+model would be about 1.4 GB. One shared model, plus a small adapter per task or
+customer.
 
 <br><br>
 
@@ -449,21 +403,20 @@ progress, not how much LoRA alone helped.)
 10. **Optional — change one thing and rerun:**
 
 - **Smaller adapter (about 4 minutes).** In STEP 3 of your file, change `r=16`
-  to `r=8` and `lora_alpha=32` to `16`. The trained percentage should halve and
-  the adapter file shrink; STEP 8 shows whether the scores suffer.
-- **DoRA (about 10 minutes on a CPU — best done at home).** Add
-  `use_dora=True,` to the LoRA settings in STEP 3. DoRA is a LoRA variation
-  that often does a little better with small adapters, but both training and
-  testing are noticeably slower.
+  to `r=8` and `lora_alpha=32` to `16`. The trained percentage should halve;
+  STEP 8 shows whether the scores suffer.
+- **DoRA (about 10 minutes — best done at home).** Add `use_dora=True,` to the
+  LoRA settings in STEP 3. Often a little better with small adapters, but
+  noticeably slower.
 
 Lab 5 uses the adapter this lab saves, so put the settings back and rerun
 before you move on.
 
 <br><br>
 
-11. **Discussion — is LoRA always the better choice?** For teaching a model a
-new format, style or task, usually yes, and it is far cheaper. Retraining the
-whole model can still win when the model must absorb a lot of new knowledge.
+11. **Discussion — is LoRA always the better choice?** For a new format, style
+or task, usually yes, and far cheaper. Retraining the whole model can still win
+when the model must absorb a lot of new knowledge.
 
 <p align="center">**[END OF LAB]**</p></br></br>
 
@@ -480,16 +433,13 @@ and combine the adapter and the model into one file you can ship.**
 <br><br>
 
 **The idea in plain words.** LoRA trains only a small adapter, but the whole
-model still has to sit in memory while you train. QLoRA shrinks that model by
-storing each of its numbers in 4 bits instead of 16 or 32 — a bit like saving a
-photo at lower quality — and then trains a LoRA adapter on top, as before. The
-goal is to fit a bigger model into the memory you have.
+model still sits in memory. QLoRA stores each of the model's numbers in 4 bits
+instead of 16 or 32 — like saving a photo at lower quality — then trains a LoRA
+adapter on top, to fit a bigger model into the memory you have.
 
-**Read this before you run it.** This lab shows *how* QLoRA works and how much
-memory it saves — not how good its results are. It trains for only **4 steps**,
-because on a CPU the 4-bit math is very slow: about 20-30 times slower per example
-than Lab 3. (On a GPU the slowdown is much smaller.) **QLoRA saves memory, not
-time.**
+**Before you run it:** this lab shows *how* QLoRA works and what it saves, not
+how good its results are. It trains for only **4 steps**: on a CPU, 4-bit math
+is 20-30 times slower per example than Lab 3. **QLoRA saves memory, not time.**
 
 <br><br>
 
@@ -528,79 +478,68 @@ python finetune/lab4_qlora.py
   at 4 bits (0.5 byte each):      240 MB
 ```
 
-4-bit isn't a full 8 times smaller than 32-bit: some parts of the model stay
-uncompressed. The bigger the model, the closer you get to the full saving.
+Not a full 8 times smaller than 32-bit: some parts of the model stay
+uncompressed. The bigger the model, the closer you get.
 
 <br><br>
 
-5. Look at **STEP 3**, which looks inside one compressed layer. Three things to
-notice:
-
-- **Packed** — two 4-bit numbers are stored in each byte.
-- **In groups** — numbers are compressed 64 at a time, each group with its own
-  scale, so one unusual value can't spoil the rest.
-- **The "nf4" format** — the 4-bit format QLoRA uses. Its 16 possible values
-  are placed where a trained model's numbers actually tend to fall, so it loses
-  less accuracy than evenly spaced values would.
+5. Look at **STEP 3**, inside one compressed layer: two 4-bit numbers per byte,
+compressed in groups of 64, each group with its own scale. `nf4` is the 4-bit
+format QLoRA uses.
 
 ![Lab 4 memory comparison and a look inside a 4-bit layer](./images/ft-lab4-memory.png?raw=true "4-bit memory use")
 
 <br><br>
 
-6. Look at **STEP 5**. The loss changes — proof that training still reaches the
-adapter even though the model underneath is compressed. Then read the timing:
+6. Look at **STEP 5**. The loss falls, so training still reaches the adapter.
+Then read the timing:
 
 ```
   4-bit, 2 examples per step :  ~45-50 seconds per step
   Lab 3, 8 examples per step :   ~6-10 seconds per step
 ```
 
-Lab 3 also handled four times as many examples per step (8 instead of 2), so per
-example, 4-bit is roughly 20-30 times slower here. **Takeaway:** use QLoRA when memory
-is the problem. If the model already fits, plain LoRA trains faster.
+Lab 3 also handled four times as many examples per step, so per example 4-bit
+is 20-30 times slower here. **Takeaway:** use QLoRA when memory is the problem;
+if the model already fits, plain LoRA is faster.
 
 <br><br>
 
-7. Look at **STEP 6**, the merge: folding the adapter permanently into the model,
-so you can ship one ordinary model. Read the code: we trained on the 4-bit
-model, but merge into a fresh full-size (16-bit) copy. Merging into the
-compressed version would make its accuracy loss permanent. The order is always:
-train compressed → merge into a full-size copy → compress the result again if
-you need to.
+7. Look at **STEP 6**, the merge: folding the adapter permanently into the
+model, so you ship one ordinary model. We trained on the 4-bit model but merge
+into a fresh full-size (16-bit) copy; merging into the compressed copy would
+make its accuracy loss permanent.
 
 <br><br>
 
-8. Merge, or keep the adapter separate? A merged model is an ordinary model
-that needs nothing extra to run, but you lose Lab 3's one-model, many-adapters
-trick. Merge for a single dedicated use; keep adapters separate to serve many
-customers or tasks.
+8. Merge, or keep the adapter separate? A merged model needs nothing extra to
+run, but you lose Lab 3's one-model, many-adapters trick. Merge for one
+dedicated use; keep adapters separate for many customers or tasks.
 
 <br><br>
 
-9. Look at **STEP 7**, which scores the merged model — the file you would ship.
-The scores are poor, as expected after only 4 training steps. That shows how
-much the amount of training matters, not that QLoRA is worse than LoRA.
+9. Look at **STEP 7**, which scores the merged model. Poor, as expected after
+4 training steps: that shows how much the amount of training matters, not that
+QLoRA is worse than LoRA.
 
-A fair test (same model, data and settings, 24 steps) takes about 70 minutes on
-a CPU, so it is homework: set `QLORA_STEPS = 24` and `QLORA_BATCH = 8`, run it,
-and compare with Lab 3's results in `out/results.json`. Published research
-found almost no difference in quality.
+**Homework:** a fair test (24 steps, same settings) takes about 70 minutes on a
+CPU. Set `QLORA_STEPS = 24` and `QLORA_BATCH = 8`, run it, and compare with
+Lab 3's row in `out/results.json`. Published research found almost no
+difference in quality.
 
 <br><br>
 
-10. Look at **STEP 8**. TinyLlama, a 1.1-billion-parameter model, loaded in 4-bit
-takes less memory than Lab 3's 360-million-parameter model did at full size.
-That is the point of QLoRA: on the same hardware, you can fine-tune a model
-about three times bigger.
+10. Look at **STEP 8**. TinyLlama, a 1.1-billion-parameter model, loaded in
+4-bit takes less memory than Lab 3's 360-million-parameter model did at full
+size. On the same hardware, you can fine-tune a model about three times bigger.
 
 <br><br>
 
 11. **Optional, at home, on a GPU.** Point `BASE_MODEL` at TinyLlama and nothing
 else needs to change. For `"microsoft/Phi-3-mini-4k-instruct"` (3.8 billion
-parameters), also change `target_modules` to
-`["qkv_proj", "o_proj", "gate_up_proj", "down_proj"]` — Phi-3 uses different
-layer names (see Lab 3, STEP 2). It is a 7.6 GB download, which is why it isn't
-a live lab.
+parameters, a 7.6 GB download), also change `target_modules` to
+`["qkv_proj", "o_proj", "gate_up_proj", "down_proj"]`: Phi-3 names its layers
+differently (see Lab 3, STEP 2).
 
 <p align="center">**[END OF LAB]**</p></br></br>
 
@@ -616,9 +555,9 @@ abilities.**
 
 <br><br>
 
-1. First, test the original SmolLM2 model on a standard set of general-knowledge
-questions, using EleutherAI's lm-evaluation-harness — the standard tool for
-this. It saves its results to a file the Lab 5 script reads. About 1-2 minutes:
+1. First, quiz the original SmolLM2 model on standard general-knowledge
+questions with EleutherAI's lm-evaluation-harness, the standard tool for this.
+About 1-2 minutes:
 
 ```
 lm_eval run --model hf \
@@ -630,15 +569,13 @@ lm_eval run --model hf \
   --output_path out/harness-base
 ```
 
-The tool prints a lot of technical detail, including warnings about "few-shot"
-examples (sample questions it can show before each one). You can ignore them;
-the Lab 5 script reads the results for you.
+It prints a lot of technical detail and some warnings; ignore them. The Lab 5
+script reads its results file.
 
 <br><br>
 
-2. Now run the same test **with your Lab 3 adapter attached** — the `peft=` part
-adds it. This needs `out/smollm2-lora` from Lab 3; if Lab 3 didn't finish, go
-back and complete it first. Another 1-2 minutes:
+2. Now the same quiz **with your Lab 3 adapter attached** (the `peft=` part).
+This needs `out/smollm2-lora` from Lab 3. Another 1-2 minutes:
 
 ```
 lm_eval run --model hf \
@@ -661,8 +598,8 @@ code finetune/lab5_eval.py
 <br><br>
 
 4. Merge in the completed code — work top to bottom until no highlighting is
-left — and save. There are four `# TODO` markers; the last one is for the
-optional Groq step and is fine to merge whether or not you have a key:
+left — and save. The last `# TODO` is for the optional Groq step; merge it
+whether or not you have a key:
 
 ```
 code -d extra/lab5_eval_complete.txt finetune/lab5_eval.py
@@ -691,33 +628,28 @@ Lab 4  QLoRA test  SmolLM2  360M          ...      ...      ...    ...      ... 
   (random guessing, on average: category 12.5%, priority 25.0%, queue 16.7%)
 ```
 
-Read every column, not just one. `format`: does it answer in the right format?
-`category`: does it understand the ticket? `MB`: how big is what you would ship?
-`steps`: how much training did it get? `sec`: how long did training take? A
-single "accuracy" number would hide all of that.
-
-Compare every trained row with the **best prompt** row, the score to beat. (In
-our run, no row beat its 45% on priority.)
-
-The last row (Lab 4) trained for only 4 steps, so its low scores show what too little
-training does — not what 4-bit costs in quality.
+Read every column: `format` (right shape?), `category` (understood the
+ticket?), `MB` (how big is what you would ship?), `steps` and `sec` (how much
+training, how long). Compare every trained row with the **best prompt** row,
+the score to beat. The Lab 4 row trained for only 4 steps, so its low scores
+show too little training — not what 4-bit costs.
 
 ![Lab 5 comparison table](./images/ft-lab5-table.png?raw=true "Comparison table across every run")
 
 <br><br>
 
-7. Look at **STEP 3**. It breaks the results down by category and lists the most
-common mix-ups (true category → predicted category). An overall score tells you
-*whether* there is a problem; this tells you *where*. When one category drags the
-average down, the usual fix is more training examples for that category.
+7. Look at **STEP 3**: each category scored separately, plus the most common
+mix-ups (true category → predicted). An overall score says *whether* there is a
+problem; this says *where*. The usual fix for a weak category is more training
+examples of it.
 
 ![Lab 5 scores by category](./images/ft-lab5-categories.png?raw=true "Scores for each category, and the most common mix-ups")
 
 <br><br>
 
-8. Look at **STEP 4** and read the actual failures. Four wrong answers tell you
-in seconds whether the model is confused or your labels are unclear — two
-different problems with different fixes.
+8. Look at **STEP 4**, four actual failures. They show in seconds whether the
+model is confused or your labels are unclear — different problems, different
+fixes.
 
 <br><br>
 
@@ -730,43 +662,32 @@ different problems with different fixes.
   arc_easy              0.250      0.300     +0.050
 ```
 
-Your adapter made the model good at ticket triage; this checks what that cost on
-everything else. Expect changes near zero — 24 steps of LoRA is a light touch. A
-small gain is just noise: with 20 questions, one answer moves the score by 0.05.
-
-What you are watching for is a **big drop**, called *catastrophic forgetting*:
-the model got worse at everything except your task. The usual fix is gentler
-training, or mixing some general examples into the training data.
+Expect changes near zero — with 20 questions, one answer moves a score by 0.05,
+so a small change is noise. Watch for a **big drop**, called *catastrophic
+forgetting*: the model got worse at everything except your task. The fix is
+gentler training, or mixing general examples into the training data.
 
 <br><br>
 
-10. Two honesty notes. First, 20 questions per test can catch a big drop but
-can't give a reliable score; remove `--limit 20` for a real number (much slower
-on a CPU). Second, these labs reuse Lab 1's 71 test tickets throughout. In real
-projects, keep a separate set for tuning decisions and use the test set once, at
-the end — a test set you keep adjusting against stops being a fair test.
+10. Two honesty notes. 20 questions per quiz catches a big drop but is not a
+reliable score; remove `--limit 20` for a real one (much slower). And these
+labs reuse Lab 1's test tickets throughout; in real projects, keep a separate
+set for tuning decisions and use the test set once, at the end.
 
 <br><br>
 
 11. **Optional — compare with a big hosted model.** **STEP 6** sends the same 20
 tickets to `openai/gpt-oss-120b`, a very large model hosted by Groq, with the
-best prompt we could write (every category, priority and routing rule), and
-compares the result with your LoRA model.
+best prompt we could write, and compares it with your LoRA model.
 
-This needs a free Groq API key. If you haven't set one up, follow "Optional: a
-free Groq API key" in `README.md` (about two minutes), then run
-`python finetune/lab5_eval.py` again. **Without a key, the step prints a note and
-skips** — nothing else depends on it.
+This needs a free Groq API key: follow "Optional: a free Groq API key" in
+`README.md` (about two minutes), then run `python finetune/lab5_eval.py` again.
+**Without a key, the step prints a note and skips.** (If it reports a "404",
+Groq has retired the model; the printout says what to do.)
 
-> **If this step reports the model was not found ("404"),** Groq has retired it
-> — that happens a few times a year. Run `python scripts/check_groq.py` to see
-> which models your key can use, and put one of them in `FRONTIER_MODEL` in
-> `common/triage.py`.
-
-Whatever the result, with a hosted model you pay for every request, every
-ticket leaves your company, and the provider can retire the model. And if the
-big model wins, the task may not need fine-tuning at all — a useful finding.
-**Run this comparison before you invest in fine-tuning, not after.**
+Whatever the result: a hosted model costs per request, sends every ticket
+off-site, and can be retired. And if it wins, the task may not need fine-tuning
+at all. **Run this comparison before you invest in fine-tuning, not after.**
 
 <br><br>
 
@@ -774,15 +695,15 @@ big model wins, the task may not need fine-tuning at all — a useful finding.
 
 | Question | Where the answer is |
 |---|---|
-| Does fine-tuning help this task at all? | the Lab 1 best-prompt row vs. the trained rows |
-| Do we need to retrain the *whole* model? | Lab 2 vs. Lab 3: results per MB and per second |
-| Do we need a bigger model? | category accuracy across the model sizes |
-| Did we break anything? | the STEP 5 before/after scores |
-| Should we have just used a hosted model? | the STEP 6 comparison |
+| Does fine-tuning help this task at all? | Lab 1 best-prompt row vs. the trained rows |
+| Do we need to retrain the *whole* model? | Lab 2 vs. Lab 3: scores, MB, seconds |
+| Do we need a bigger model? | category accuracy by model size |
+| Did we break anything? | STEP 5 |
+| Should we have just used a hosted model? | STEP 6 |
 
-Close the loop the way you would at work: in one or two sentences, write the
-recommendation you would send Northwind Logistics — which model (if any) goes to
-production, and the two numbers from today you would cite to defend it.
+In one or two sentences, write the recommendation you would send Northwind
+Logistics: which model (if any) goes to production, and the two numbers from
+today that defend it.
 
 <p align="center">**[END OF LAB]**</p></br></br>
 

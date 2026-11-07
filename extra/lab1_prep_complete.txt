@@ -79,10 +79,8 @@ print("COMPLETION (what the model must produce):")
 print("-" * 60)
 print(row["completion"])
 print("-" * 60)
-print("\nThese two parts are not in the data file -- this step built them from each")
-print("row. The prompt is the ticket inside a short fixed template; the completion")
-print("is the row's label. Keeping them apart lets Lab 3 grade the model only on")
-print("the completion, not on repeating the ticket back to us.")
+print("-> Built from each row: the ticket inside a fixed template, and the answer")
+print("   the model must produce.")
 
 
 # ==========================================================================
@@ -101,9 +99,7 @@ rendered = chat_tok.apply_chat_template(messages, tokenize=False,
                                         add_generation_prompt=True)
 print(rendered)
 print("-" * 60)
-print("Same content, wrapped in the special markers (like <|im_start|>) that THIS")
-print("model was trained to expect. Use the wrong markers and its answers quietly")
-print("get worse.")
+print("-> Same ticket, wrapped in the markers this model was trained to expect.")
 
 
 # ==========================================================================
@@ -124,9 +120,7 @@ lengths.sort()
 print(f"\n  shortest {lengths[0]}   typical {lengths[len(lengths) // 2]}   "
       f"longest {lengths[-1]} tokens")
 print("  (a token is a word or a piece of a word)")
-print("\n  Short examples are why this workshop can run on a plain CPU. Longer text")
-print("  costs more to train on, and the cost grows faster than the length --")
-print("  so keep examples short.")
+print("  -> Short examples are why this workshop can run on a plain CPU.")
 
 
 # ==========================================================================
@@ -165,21 +159,9 @@ print_scores("BASELINE - distilgpt2, no training", s)
 save_result("baseline_distilgpt2", s, {"model": BASE_MODEL, "trained": False})
 print_random_guess()
 
-print(f"""
-  How these were measured: each of the {s['n']} answers is compared with its
-  EXPECTED line.
-    right format -- is the first line exactly in this form?
-                    category: ... | priority: ... | queue: ...
-    category / priority / queue correct -- does the answer name the right
-                    one anywhere, in any form? ("Category: billing" on its
-                    own line still counts.)
-
-  Look at the PREDICTED lines above: distilgpt2 just keeps writing sentences
-  and never names a category, priority or queue -- so it scores BELOW random
-  guessing. That does not mean the model is hopeless. It means nobody told it
-  what the task is. A bare prompt is not a fair starting point, so next we
-  give a model the best prompt we can write.
-""")
+print("\n  -> distilgpt2 keeps writing sentences and never names a category: nobody")
+print("     told it the task. A bare prompt is not a fair bar, so STEP 9 gives a")
+print("     model the best prompt we can write.")
 
 
 # ==========================================================================
@@ -191,9 +173,8 @@ print("=" * 70)
 
 chat_model = AutoModelForCausalLM.from_pretrained(CHAT_MODEL, dtype=torch.float32)
 examples = pick_examples(ds["train"], k=len(CATEGORIES))
-print("\n  Prompt = full instructions (every category, priority, queue and the")
-print(f"  routing rules) + {len(examples)} worked examples, one ticket per category,")
-print("  each with its correct answer.")
+print(f"\n  Prompt = full instructions + {len(examples)} worked examples (one per category).")
+print("  No training.")
 
 best_preds = best_prompt_predictions(chat_model, chat_tok, eval_rows, examples, show=3)
 best = score(best_preds, eval_rows)
@@ -209,8 +190,6 @@ print(f"""
   {'priority correct':18s} {1/len(PRIORITIES):8.0%} {s['priority_acc']:12.0%} {best['priority_acc']:12.0%}
   {'queue correct':18s} {1/len(QUEUES):8.0%} {s['queue_acc']:12.0%} {best['queue_acc']:12.0%}
 
-  The best-prompt column is the number every later lab has to beat. It is
-  the best we can do without training -- and it costs a prompt of several
-  hundred tokens on every single request. If training cannot clearly beat
-  it, think hard about whether training is worth it.
+  -> The best-prompt column is the score every later lab has to beat -- and
+     it costs a prompt of about 700 tokens on every request.
 """)

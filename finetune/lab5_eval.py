@@ -70,29 +70,10 @@ print(f"  (random guessing, on average: category {RANDOM_GUESS['category_acc']:.
       f"priority {RANDOM_GUESS['priority_acc']:.1%}, queue {RANDOM_GUESS['queue_acc']:.1%})")
 
 print("""
-  The row to beat is "best prompt": the best SmolLM2 did with no training.
-
-  Read the columns, not just the last row.
-
-  format   -- can the model write its answer in the required shape at all?
-  category -- does it understand the ticket?
-  MB       -- how much disk space each fine-tuned version takes
-  steps    -- how many rounds of training it had
-  sec      -- how long training took
-
-  A single overall score would have hidden every one of those trade-offs.
-
-  Now compare the last two rows, looking at the steps column. Lab 4 was a
-  4-step test of how QLoRA works, not a quality run -- a full 24-step 4-bit
-  run takes over an hour on a CPU. So this table does NOT show what 4-bit
-  storage costs in quality. It shows something just as useful: the gap
-  between the last two rows comes almost entirely from the number of
-  training steps -- the most common reason a real fine-tune disappoints.
-
-  The 4-bit quality question has been studied (the QLoRA paper found 4-bit
-  matched 16-bit LoRA on its tests), and it is homework at the end of Lab 4.
-  What Lab 4 showed live: 4-bit training works, how much memory it saves,
-  and how to save the result as one standalone model.
+  -> The row to beat is "best prompt". Read across every column: format,
+     category, MB, steps and sec each answer a different question.
+     Lab 4's row trained for only 4 steps, so its low scores show too little
+     training -- not what 4 bits costs in quality.
 """)
 
 
@@ -104,12 +85,8 @@ print("STEP 2: Reload the Lab 3 model to look at its mistakes")
 print("=" * 78)
 
 if not os.path.isdir(LORA_DIR):
-    print(f"""
-  No adapter found at {LORA_DIR}.
-
-  STEPS 2-4 need the adapter Lab 3 saves. Go back and run Lab 3, then rerun
-  this script. STEPS 1, 5 and 6 do not need it.
-""")
+    print(f"\n  No adapter found at {LORA_DIR}. STEPS 2-4 need the adapter Lab 3 saves:")
+    print("  run Lab 3, then rerun this script.")
     raise SystemExit(0)
 
 # Load the tokenizer we SAVED next to the adapter, not a fresh one -- it
@@ -151,12 +128,8 @@ if confusions:
     for (t, g), c in confusions.most_common(5):
         print(f"    {t:24s} -> {g:24s} x{c}")
 
-print("""
-  One overall score tells you IF there is a problem. Scoring each category
-  separately tells you WHERE. If one category drags everything down, the
-  usual fix is more training examples of that category -- not more passes
-  over the same data.
-""")
+print("\n  -> One overall score says IF there is a problem; this says WHERE. The usual")
+print("     fix is more training examples of the weak category.")
 
 
 # ==========================================================================
@@ -177,11 +150,8 @@ for pred, row in zip(preds, eval_rows):
 if shown == 0:
     print("\n  No failures in this sample -- try raising N_EVAL.")
 
-print("""
-  Always read a few. Scores are summaries that hide detail; the actual
-  mistakes show whether the model misunderstands the task or the correct
-  answer itself is unclear.
-""")
+print("\n  -> Always read a few: they show whether the model misunderstands the task")
+print("     or the correct answer itself is unclear.")
 
 
 # ==========================================================================
@@ -219,36 +189,14 @@ if base_res and lora_res:
             continue
         print(f"  {t:16s} {b:10.3f} {l:10.3f} {l - b:+10.3f}")
     print("""
-  These are two general-knowledge quizzes (school science questions) that
-  have nothing to do with support tickets. Training on one narrow task can
-  quietly make a model worse at everything else -- called "catastrophic
-  forgetting". These numbers check for it.
-
-  How to read the change column:
-
-    near zero      -- what to expect here. 24 LoRA steps is a very light
-                      touch; nothing got overwritten.
-    small increase -- luck, not improvement. With only 20 questions, one
-                      extra right answer moves the score by 0.05. Don't tell
-                      anyone support-ticket training made it better at science.
-    small decrease -- also luck at this size, and normal even when real.
-    large decrease -- what this check is for. Training was too aggressive
-                      (learning rate too high, too many passes) or the data
-                      too narrow, and the model now gives one kind of answer
-                      to everything. Mix in general examples and retrain.
-
-  The value is in having the number at all. Many teams ship a fine-tuned
-  model without ever checking this.
-
-  Note: --limit 20 keeps this to about a minute, so the scores are rough. It
-  is enough to catch a big drop, not enough to publish. Remove --limit for a
-  real number.
+  -> Two school-science quizzes, nothing to do with tickets. Expect changes
+     near zero: with 20 questions, one answer moves a score by 0.05, so a
+     small change either way is luck. A BIG drop means training hurt the
+     model's other skills.
 """)
 else:
-    print("""
-  No quiz results found. Run the two lm_eval commands from labs.md first:
-  they save their results in out/harness-base/ and out/harness-lora/.
-""")
+    print("\n  No quiz results found. Run the two lm_eval commands from labs.md first,")
+    print("  then rerun this script.")
 
 
 # ==========================================================================
@@ -267,13 +215,8 @@ FRONTIER = FRONTIER_MODEL               # about 330x the size of our SmolLM2
 groq_preds = None
 
 if groq_preds is None:
-    print("""
-  Skipped -- no GROQ_API_KEY in the environment.
-
-  This step is entirely optional and nothing else depends on it. If you have a
-  free Groq account, set your key with scripts/setup-key.sh (see README.md)
-  and rerun. Everything else in this workshop needs no accounts.
-""")
+    print("\n  Skipped -- no GROQ_API_KEY set. This step is optional. To run it, set a")
+    print("  free key with scripts/setup-key.sh (see README.md) and rerun.")
 else:
     gs = score(groq_preds, eval_rows)
     print_scores(f"PROMPT ONLY, NO TRAINING - {FRONTIER}", gs)
@@ -291,34 +234,9 @@ else:
             print(f"  {name:16s} {ours[k]:11.1%} {gs[k]:19.1%} {gs[k] - ours[k]:+10.1%}")
 
     print("""
-  Read this one carefully -- it is the question your managers will ask.
-
-  That model got the best prompt we could write: every category, every
-  priority, the full routing table, and the exact answer format. It has
-  about 330 times as many numbers as the model you fine-tuned (120 billion,
-  though it uses only about 5 billion of them for each word it writes).
-
-  However the scores compare, these points don't change:
-
-    Cost      -- you pay for every word sent and received, on every request.
-                 That prompt is about 250 tokens, sent and paid for every time.
-    Speed     -- every ticket makes a trip over the internet, instead of
-                 running on your own machine.
-    Privacy   -- every ticket leaves your network. For many companies, that
-                 alone rules it out.
-    Control   -- the provider can retire or change the model at any time.
-                 Your adapter is a 37 MB file you own. This really happened:
-                 the model THIS STEP used to call, llama-3.3-70b-versatile,
-                 was switched off by Groq on 2026-08-16, and the step broke
-                 until someone changed one line. Your Lab 3 adapter still runs.
-    Behavior  -- a prompt only asks the model to behave a certain way;
-                 training changes the model itself.
-
-  If the big model wins on the scores here, the honest conclusion is: this
-  task is easy enough to solve with a prompt, so think hard about whether
-  fine-tuning is worth it. That is a perfectly good outcome, and finding out
-  costs one quick test. Run this comparison BEFORE you invest in
-  fine-tuning, not after.
+  -> A model about 330x bigger, with the best prompt we could write. If it wins,
+     a prompt may be enough: run this check BEFORE investing in fine-tuning.
+     (Even so: you pay per request, and every ticket leaves your network.)
 """)
 
 
@@ -329,13 +247,10 @@ print("\n" + "=" * 78)
 print("STEP 7: What you would tell your team")
 print("=" * 78)
 print("""
-  You now have the evidence to answer five separate questions:
-
-    Does fine-tuning help this task?      -> best-prompt row vs. trained rows
-    Do we need full fine-tuning?          -> Lab 2 vs. Lab 3: scores and file size
-    Do we need a bigger model?            -> category scores by model size
-    Did we break anything?                -> the quiz changes in STEP 5
-    Should we just use a hosted model?    -> the STEP 6 comparison
-
-  That is the whole job. Everything else is adjusting settings.
+  Five questions you can now answer with evidence:
+    Does fine-tuning help?         -> best-prompt row vs. trained rows
+    Retrain the whole model?       -> Lab 2 vs. Lab 3 (scores, MB)
+    Need a bigger model?           -> category scores by model size
+    Did we break anything?         -> STEP 5
+    Just use a hosted model?       -> STEP 6
 """)

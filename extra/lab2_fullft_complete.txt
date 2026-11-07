@@ -48,19 +48,9 @@ model = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.float32)
 model.resize_token_embeddings(len(tokenizer))
 param_report(model, "distilgpt2 (full fine-tuning)")
 
-print(f"""
-  Training will change 100% of these numbers. Remember that: in Lab 3 it
-  drops to about 2.3%.
-
-  Why we added a new padding token:
-  Short examples are filled out with a padding token so that a group of
-  examples all have the same length, and padding is skipped when the model
-  is graded. GPT-2 has no padding token, and a common shortcut is to reuse
-  its end-of-text token. But then every real end-of-text would be skipped in
-  grading too, and the model would never learn where to stop. So we add a
-  separate one:
-    padding token = {tokenizer.pad_token_id}    end-of-text token = {tokenizer.eos_token_id}
-""")
+print(f"  padding token = {tokenizer.pad_token_id}    end-of-text token = {tokenizer.eos_token_id}   "
+      "(two different tokens, on purpose)")
+print("\n  -> Training will change 100% of these numbers. In Lab 3 it is about 2.3%.")
 
 
 # ==========================================================================
@@ -83,13 +73,8 @@ print(f"\n  {len(tokenized['train'])} training examples ready.")
 print("\n  One training example, exactly as the model will see it:\n")
 print(tokenizer.decode(tokenized["train"][0]["input_ids"]))
 
-print("""
-  <|endoftext|> is the end-of-text token. It teaches the model where to stop.
-
-  In this lab the model is graded on every word of that text -- the ticket as
-  well as the triage line. Lab 3 grades only the triage line. Watch for the
-  difference.
-""")
+print("\n  -> It ends with <|endoftext|>, which teaches the model where to stop. Here")
+print("     the model is graded on every word of it; Lab 3 grades only the triage line.")
 
 
 # ==========================================================================
@@ -112,10 +97,8 @@ print(f"\n  4 examples grouped together, each now {len(ids)} tokens long.")
 print("  Where the shortest one ends and its padding begins:")
 print(f"    tokens       : {ids[start:start + 8]}")
 print(f"    what's graded: {graded[start:start + 8]}")
-print(f"""
-  -100 means "skip this one when grading". The padding ({tokenizer.pad_token_id}) is
-  skipped. The end-of-text token ({tokenizer.eos_token_id}) is still graded -- that is
-  what teaches the model to stop.""")
+print(f"  -> -100 = skip when grading. Padding ({tokenizer.pad_token_id}) is skipped; "
+      f"the end-of-text token ({tokenizer.eos_token_id}) is still graded.")
 
 
 # ==========================================================================
@@ -181,11 +164,8 @@ size_mb = sum(
     if os.path.isfile(os.path.join(OUTPUT_DIR, f))
 ) / 1024 ** 2
 print(f"\n  {OUTPUT_DIR} is {size_mb:.0f} MB")
-print("""
-  A full fine-tune produces a whole new copy of the model. Ten fine-tuned
-  variants means ten copies. Remember this number when you see the adapter
-  size in Lab 3.
-""")
+print("  -> Retraining everything saves a whole new copy of the model. Compare with")
+print("     the adapter size in Lab 3.")
 
 
 # ==========================================================================
@@ -206,8 +186,5 @@ save_result("fullft_distilgpt2", s, {
     "steps": result.global_step, "final_loss": round(result.training_loss, 4),
 })
 
-print("""
-  Compare with Lab 1's best-prompt row, the score to beat. Category and
-  queue should be clearly higher: a small trained model beats a bigger
-  prompted one. Priority usually doesn't move.
-""")
+print("\n  -> Compare with Lab 1's best-prompt row: category and queue should be clearly")
+print("     higher. A small trained model beats a bigger prompted one.")

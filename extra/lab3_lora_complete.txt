@@ -64,12 +64,8 @@ names = sorted({
     if isinstance(m, torch.nn.Linear)
 })
 print(f"\n  Layer names in this model: {names}")
-print("""
-  These are the layers LoRA can attach adapters to. The names depend on the
-  model family, so a list copied from a different kind of model can match
-  fewer layers than you meant -- or none. Always use the names the model
-  itself reports. The percentage printed in STEP 4 is your check.
-""")
+print("  -> Always use the names the model itself reports; a list copied from another")
+print("     kind of model can quietly miss layers.")
 
 
 # ==========================================================================
@@ -103,11 +99,7 @@ print("=" * 70)
 peft_model = get_peft_model(model, peft_config)
 param_report(peft_model, "SmolLM2-360M with LoRA adapters")
 
-print("""
-  That percentage is how much of the model will actually be trained. The
-  memory training needs grows with the part being trained, not with the whole
-  model -- which is why LoRA fits where retraining everything would not.
-""")
+print("  -> That share is how much of the model will be trained. Lab 2 trained 100%.")
 
 
 # ==========================================================================
@@ -144,11 +136,8 @@ n_masked = sum(1 for l in row["labels"] if l == -100)
 print(f"\n  first example: {len(row['input_ids'])} tokens, "
       f"{n_masked} from the prompt (not graded), {len(row['labels']) - n_masked} graded")
 print(f"  grading marks for the first 12 tokens (-100 = not graded): {row['labels'][:12]}")
-print("""
-  In Lab 2 the model was also graded on repeating the ticket text, which wastes
-  effort a small model can't spare. Here all of the training goes into writing
-  the triage line.
-""")
+print("  -> Lab 2 also graded the model on repeating the ticket. Here all the training")
+print("     goes into writing the triage line.")
 
 
 # ==========================================================================
@@ -212,11 +201,8 @@ print(f"\n  Files written: {sorted(os.listdir(OUTPUT_DIR))}")
 print(f"  Adapter directory        : {adapter_mb:8.1f} MB")
 print(f"  A full copy would be     : {full_mb:8.1f} MB")
 print(f"  Ratio                    : {full_mb / adapter_mb:8.0f}x smaller")
-print("""
-  The model itself stays the same for every task or customer; each one only
-  needs its own small adapter file. Twenty variants = one model + twenty
-  small files, not twenty copies of the model.
-""")
+print("  -> One shared model plus a small adapter per task or customer, instead of a")
+print("     full copy of the model each time.")
 
 
 # ==========================================================================
@@ -238,10 +224,5 @@ save_result("lora_smollm2", s, {
     "final_loss": round(result.training_loss, 4),
 })
 
-print("""
-  Compare with Lab 2: a model four times bigger, only about 2% of it
-  trained, and a saved file measured in megabytes instead of hundreds of
-  megabytes.
-
-  OPTIONAL: the end of Lab 3 in labs.md has two small experiments to try.
-""")
+print("\n  -> Compare with Lab 2: a model 4x bigger, about 2% of it trained, and a file")
+print("     of tens of MB instead of hundreds. (Optional experiments: end of Lab 3 in labs.md.)")
