@@ -5,9 +5,9 @@ Full fine-tuning updates every number (parameter) in the model. Labs 3 and 4
 use cheaper methods, LoRA and QLoRA, and are compared with this one -- both
 for how good the answers are and for what the training costs.
 
-We use distilgpt2 (82 million parameters -- a smaller, 6-layer version of the
-124-million-parameter GPT-2) because it is about the largest model you can
-fully fine-tune on 4 CPU cores in a couple of minutes.
+We use distilgpt2 (82 million parameters -- a smaller version of GPT-2)
+because it is about the largest model you can fully fine-tune on 4 CPU cores
+in a couple of minutes.
 """
 
 import sys, os, time
@@ -133,11 +133,8 @@ args = TrainingArguments(
     warmup_steps=0.05,          # ease in: raise the learning rate over the first 5% of steps
     lr_scheduler_type="cosine", # ...then lower it slowly toward zero
     logging_steps=5,            # report the loss every 5 steps
-    save_strategy="no",         # don't save copies during training
-    eval_strategy="no",         # don't stop to test during training
-    report_to="none",           # don't send results to outside tracking tools
+    save_strategy="no",         # don't save extra copies of the model while training
     use_cpu=True,               # run on the computer's processor, not a graphics card
-    seed=42,
 )
 print(f"\n  {args.num_train_epochs:.0f} passes through the data, "
       f"{args.per_device_train_batch_size} examples per step, "
@@ -156,7 +153,7 @@ trainer = Trainer(
     args=args,
     train_dataset=tokenized["train"],
     data_collator=collator,
-    processing_class=tokenizer,   # the tokenizer from Step 1
+    processing_class=tokenizer,   # the tokenizer from STEP 1
 )
 
 plain_progress(trainer)   # one plain line per loss report, no progress bar
@@ -210,10 +207,7 @@ save_result("fullft_distilgpt2", s, {
 })
 
 print("""
-  Compare with Lab 1's best-prompt score -- the score to beat.
-
-  Expect "right format" to jump -- the model learns the shape of the answer
-  almost at once. "category correct" will be much lower. A model with 82
-  million numbers can learn a format; working out which category a ticket
-  belongs to needs a bigger model. That is Lab 3.
+  Compare with Lab 1's best-prompt row, the score to beat. Category and
+  queue should be clearly higher: a small trained model beats a bigger
+  prompted one. Priority usually doesn't move.
 """)

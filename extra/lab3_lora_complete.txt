@@ -68,7 +68,7 @@ print("""
   These are the layers LoRA can attach adapters to. The names depend on the
   model family, so a list copied from a different kind of model can match
   fewer layers than you meant -- or none. Always use the names the model
-  itself reports. The percentage printed in Step 4 is your check.
+  itself reports. The percentage printed in STEP 4 is your check.
 """)
 
 
@@ -83,11 +83,11 @@ peft_config = LoraConfig(
     r=16,                    # adapter size: bigger can learn more
     lora_alpha=32,           # how strongly the adapter counts (usually 2 x r)
     lora_dropout=0.05,       # ignore 5% of adapter values at random while training (stops memorizing)
-    bias="none",             # train only the adapters, nothing else in the model
     task_type="CAUSAL_LM",   # a model that writes text, one token at a time
-    target_modules=["q_proj", "k_proj", "v_proj", "o_proj",   # the layer names
-                    "gate_proj", "up_proj", "down_proj"],    # from Step 2
-    use_dora=False,          # the optional step at the end of the lab turns this on
+    # Every layer name STEP 2 printed except lm_head, the last layer, which
+    # picks the next word. It is left as it is.
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                    "gate_proj", "up_proj", "down_proj"],
 )
 print(f"\n  r (adapter size) = {peft_config.r}   lora_alpha (strength) = {peft_config.lora_alpha}")
 print(f"  layers to attach adapters to: {peft_config.target_modules}")
@@ -166,12 +166,9 @@ args = TrainingArguments(
     warmup_steps=0.1,           # ease in over the first 10% of steps
     lr_scheduler_type="cosine", # ...then lower the learning rate slowly toward zero
     logging_steps=4,            # report the loss every 4 steps
-    save_strategy="no",         # don't save copies during training
-    eval_strategy="no",         # don't stop to test during training
-    report_to="none",           # don't send results to outside tracking tools
-    use_cpu=True,
-    optim="adamw_torch",        # the standard method for applying each update
-    seed=42,
+    save_strategy="no",         # don't save extra copies of the model while training
+    use_cpu=True,               # run on the processor, not a graphics card
+    optim="adamw_torch",        # the update rule: AdamW, a version of Adam (see slides)
 )
 
 # Pads every example in a batch to the same length, and marks the padding

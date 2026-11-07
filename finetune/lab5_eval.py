@@ -8,7 +8,7 @@ worse at everything else?
 Run the two lm_eval commands from labs.md BEFORE running this script -- this
 script reads their output.
 
-Step 6 is optional and needs a free GROQ_API_KEY. It compares everything you
+STEP 6 is optional and needs a free GROQ_API_KEY. It compares everything you
 built against a much larger hosted model (120 billion parameters), given the
 best prompt we can write. It is skipped automatically if you have no key.
 """
@@ -136,8 +136,8 @@ per = defaultdict(lambda: [0, 0])
 confusions = Counter()
 for pred, row in zip(preds, eval_rows):
     got = extract_fields(pred)["category"] or "<none given>"
-    # TODO 3: count one attempt for this true category, count a hit when
-    #         the prediction matches, otherwise record the mix-up pair.
+    # TODO 3: count one attempt for this ticket's correct category, a hit
+    #         when the model's answer matches, and otherwise the mix-up.
     per[row["category"]][1] += 1
 
 print(f"\n  {'right category':24s} {'correct':>9s} {'tickets':>8s}")
@@ -258,9 +258,8 @@ print("\n" + "=" * 78)
 print("STEP 6 (optional, needs GROQ_API_KEY): A huge hosted model, prompt only")
 print("=" * 78)
 
-# Set in common/triage.py, so there is ONE place to change when Groq stops
-# offering a model -- which happens about twice a year. The first model this
-# workshop used, llama-3.3-70b-versatile, was retired on 2026-08-16.
+# The model name is set in common/triage.py. Groq retires hosted models from
+# time to time; if this step says the model is not found, change it there.
 FRONTIER = FRONTIER_MODEL               # about 330x the size of our SmolLM2
 
 # TODO 4 (optional step): ask the large hosted model to answer each test
@@ -335,8 +334,8 @@ print("""
     Does fine-tuning help this task?      -> best-prompt row vs. trained rows
     Do we need full fine-tuning?          -> Lab 2 vs. Lab 3: scores and file size
     Do we need a bigger model?            -> category scores by model size
-    Did we break anything?                -> the quiz changes in Step 5
-    Should we just use a hosted model?    -> the Step 6 comparison
+    Did we break anything?                -> the quiz changes in STEP 5
+    Should we just use a hosted model?    -> the STEP 6 comparison
 
   That is the whole job. Everything else is adjusting settings.
 """)

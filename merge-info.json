@@ -54,14 +54,14 @@
         "lines": 1,
         "title": "Data collator",
         "note": [
-          "**Pads each batch to equal length and builds the labels the model is graded on.**",
+          "**Pads each batch to equal length and marks what the model is graded on.**",
           "- Padding positions get -100, meaning 'don't grade this'",
-          "- `mlm=False`: predict the next word, not fill in blanks"
+          "- `mlm=False`: the model learns by guessing the next word"
         ]
       },
       {
         "anchor": "num_train_epochs=2,",
-        "endAnchor": "seed=42,",
+        "endAnchor": "use_cpu=True,               # run on the computer's processor, not a graphics card",
         "title": "Training settings",
         "note": [
           "**How long, how fast, and on what hardware to train.**",
@@ -72,24 +72,24 @@
       },
       {
         "anchor": "train_dataset=tokenized[\"train\"],",
-        "endAnchor": "processing_class=tokenizer,   # the tokenizer from Step 1",
+        "endAnchor": "processing_class=tokenizer,   # the tokenizer from STEP 1",
         "title": "Hand the data to the Trainer",
         "note": [
           "**Gives the Trainer the tokenized tickets, the collator, and the tokenizer.**",
-          "- The tokenizer now goes in `processing_class=`"
+          "- The tokenizer goes in `processing_class=` (older examples online use `tokenizer=` here; that name no longer works)"
         ]
       }
     ],
     "extra/lab3_lora_complete.txt": [
       {
         "anchor": "r=16,                    # adapter size: bigger can learn more",
-        "endAnchor": "use_dora=False,          # the optional step at the end of the lab turns this on",
+        "endAnchor": "\"gate_proj\", \"up_proj\", \"down_proj\"],",
         "title": "LoRA settings",
         "note": [
           "**How big the adapters are, and which layers they attach to.**",
           "- `r`: adapter size. `lora_alpha`: how strongly it counts (2 x r)",
-          "- `target_modules`: the seven layer names from Step 2",
-          "- `use_dora`: turned on in the optional step at the end"
+          "- `lora_dropout`: ignores 5% of the adapter at random while training, so it doesn't just memorize",
+          "- `target_modules`: every name STEP 2 printed except `lm_head`"
         ]
       },
       {
@@ -134,14 +134,15 @@
         "title": "Load the model in 4-bit",
         "note": [
           "**Passes those settings in while loading, so weights are stored in 4 bits.**",
-          "- The old shortcut, `load_in_4bit=True` on its own, no longer works"
+          "- Leave it out and the model loads at full size"
         ]
       },
       {
         "anchor": "model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)",
         "title": "Prepare a 4-bit model for training",
         "note": [
-          "**Small housekeeping that lets training run safely on top of 4-bit weights.**"
+          "**Switches a few delicate layers to full size so training on a 4-bit model stays steady.**",
+          "- `use_gradient_checkpointing=False`: skips a memory-saving trick that would make training even slower"
         ]
       },
       {
@@ -150,7 +151,7 @@
         "title": "Same LoRA settings as Lab 3",
         "note": [
           "**Identical adapter settings to Lab 3 — only the base model's storage changed.**",
-          "- That's what makes Lab 3 vs. Lab 4 a fair comparison"
+          "- So the differences from Lab 3 are the 4-bit model and the number of training steps"
         ]
       },
       {
@@ -178,12 +179,12 @@
         "title": "Tally right and wrong per category",
         "note": [
           "**Counts correct answers per category and records each mix-up.**",
-          "- The mix-ups print as 'true -> predicted' pairs in STEP 3"
+          "- The mix-ups print in STEP 3 as right category -> model's answer"
         ]
       },
       {
         "anchor": "groq_preds = groq_predictions(eval_rows, model=FRONTIER, show=2)",
-        "title": "Optional frontier comparison",
+        "title": "Optional: a large hosted model",
         "note": [
           "**Sends the same 20 tickets to a large hosted model on Groq.**",
           "- Returns nothing and skips cleanly if no Groq key is set"
@@ -248,13 +249,13 @@
         "lines": 5
       },
       {
-        "anchor": "# TODO 2: build the batching helper (collator) for a model that writes",
+        "anchor": "# TODO 2: build the batching helper (collator) that pads each group of",
         "done": "collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)",
         "title": "Data collator",
         "note": [
-          "**Pads each batch to equal length and builds the labels the model is graded on.**",
+          "**Pads each batch to equal length and marks what the model is graded on.**",
           "- Padding positions get -100, meaning 'don't grade this'",
-          "- `mlm=False`: predict the next word, not fill in blanks"
+          "- `mlm=False`: the model learns by guessing the next word"
         ],
         "lines": 2
       },
@@ -271,28 +272,28 @@
         "lines": 5
       },
       {
-        "anchor": "# TODO 4: build the Trainer. Careful: in current versions of the",
+        "anchor": "# TODO 4: build the Trainer: the model, the settings (args), the training",
         "done": "train_dataset=tokenized[\"train\"],",
         "title": "Hand the data to the Trainer",
         "note": [
           "**Gives the Trainer the tokenized tickets, the collator, and the tokenizer.**",
-          "- The tokenizer now goes in `processing_class=`"
+          "- The tokenizer goes in `processing_class=` (older examples online use `tokenizer=` here; that name no longer works)"
         ],
         "lines": 5
       }
     ],
     "finetune/lab3_lora.py": [
       {
-        "anchor": "# TODO 1: set up LoRA",
+        "anchor": "# TODO 1: add the rest of the LoRA settings",
         "done": "r=16,                    # adapter size: bigger can learn more",
         "title": "LoRA settings",
         "note": [
           "**How big the adapters are, and which layers they attach to.**",
           "- `r`: adapter size. `lora_alpha`: how strongly it counts (2 x r)",
-          "- `target_modules`: the seven layer names from Step 2",
-          "- `use_dora`: turned on in the optional step at the end"
+          "- `lora_dropout`: ignores 5% of the adapter at random while training, so it doesn't just memorize",
+          "- `target_modules`: every name STEP 2 printed except `lm_head`"
         ],
-        "lines": 6
+        "lines": 5
       },
       {
         "anchor": "# TODO 2: add the LoRA adapters to the model",
@@ -343,7 +344,7 @@
         "title": "Load the model in 4-bit",
         "note": [
           "**Passes those settings in while loading, so weights are stored in 4 bits.**",
-          "- The old shortcut, `load_in_4bit=True` on its own, no longer works"
+          "- Leave it out and the model loads at full size"
         ],
         "lines": 1
       },
@@ -352,7 +353,8 @@
         "done": "model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)",
         "title": "Prepare a 4-bit model for training",
         "note": [
-          "**Small housekeeping that lets training run safely on top of 4-bit weights.**"
+          "**Switches a few delicate layers to full size so training on a 4-bit model stays steady.**",
+          "- `use_gradient_checkpointing=False`: skips a memory-saving trick that would make training even slower"
         ],
         "lines": 3
       },
@@ -362,7 +364,7 @@
         "title": "Same LoRA settings as Lab 3",
         "note": [
           "**Identical adapter settings to Lab 3 — only the base model's storage changed.**",
-          "- That's what makes Lab 3 vs. Lab 4 a fair comparison"
+          "- So the differences from Lab 3 are the 4-bit model and the number of training steps"
         ],
         "lines": 3
       },
@@ -395,14 +397,14 @@
         "title": "Tally right and wrong per category",
         "note": [
           "**Counts correct answers per category and records each mix-up.**",
-          "- The mix-ups print as 'true -> predicted' pairs in STEP 3"
+          "- The mix-ups print in STEP 3 as right category -> model's answer"
         ],
         "lines": 3
       },
       {
         "anchor": "# TODO 4 (optional step): ask the large hosted model to answer each test",
         "done": "groq_preds = groq_predictions(eval_rows, model=FRONTIER, show=2)",
-        "title": "Optional frontier comparison",
+        "title": "Optional: a large hosted model",
         "note": [
           "**Sends the same 20 tickets to a large hosted model on Groq.**",
           "- Returns nothing and skips cleanly if no Groq key is set"

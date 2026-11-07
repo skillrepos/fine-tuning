@@ -68,7 +68,7 @@ print("""
   These are the layers LoRA can attach adapters to. The names depend on the
   model family, so a list copied from a different kind of model can match
   fewer layers than you meant -- or none. Always use the names the model
-  itself reports. The percentage printed in Step 4 is your check.
+  itself reports. The percentage printed in STEP 4 is your check.
 """)
 
 
@@ -79,9 +79,8 @@ print("\n" + "=" * 70)
 print("STEP 3: Choose the LoRA settings")
 print("=" * 70)
 
-# TODO 1: set up LoRA -- adapter size (r) 16, strength (lora_alpha) 32,
-#         lora_dropout 0.05, bias "none", a text-writing model (CAUSAL_LM),
-#         and the seven layer names from Step 2. Leave use_dora=False for now.
+# TODO 1: add the rest of the LoRA settings, including which layers get
+#         adapters (the names STEP 2 printed).
 peft_config = LoraConfig(
     r=16,
     lora_alpha=32,
@@ -166,12 +165,9 @@ args = TrainingArguments(
     warmup_steps=0.1,           # ease in over the first 10% of steps
     lr_scheduler_type="cosine", # ...then lower the learning rate slowly toward zero
     logging_steps=4,            # report the loss every 4 steps
-    save_strategy="no",         # don't save copies during training
-    eval_strategy="no",         # don't stop to test during training
-    report_to="none",           # don't send results to outside tracking tools
-    use_cpu=True,
-    optim="adamw_torch",        # the standard method for applying each update
-    seed=42,
+    save_strategy="no",         # don't save extra copies of the model while training
+    use_cpu=True,               # run on the processor, not a graphics card
+    optim="adamw_torch",        # the update rule: AdamW, a version of Adam (see slides)
 )
 
 # Pads every example in a batch to the same length, and marks the padding

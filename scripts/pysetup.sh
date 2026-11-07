@@ -13,8 +13,8 @@ source "./$PYTHON_ENV/bin/activate"
 
 pip3 install --upgrade pip
 
-# CPU-only PyTorch. Without the explicit index, pip pulls ~3 GB of CUDA
-# libraries that are dead weight on a Codespace.
+# PyTorch for the processor only. Without the address below, pip also downloads
+# ~3 GB of graphics-card support that a Codespace can't use.
 echo ">>> Installing CPU-only PyTorch (this is the slow one, ~2 minutes)"
 pip3 install "torch>=2.9" --index-url https://download.pytorch.org/whl/cpu
 

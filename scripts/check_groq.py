@@ -16,7 +16,7 @@ TRIAGE = REPO / "common" / "triage.py"
 
 
 def lab_model():
-    """Read FRONTIER_MODEL from common/triage.py without importing the training stack."""
+    """Read FRONTIER_MODEL from common/triage.py without loading the big training libraries."""
     m = re.search(r'^FRONTIER_MODEL\s*=\s*["\']([^"\']+)["\']',
                   TRIAGE.read_text(encoding="utf-8"), re.MULTILINE)
     return m.group(1) if m else None
@@ -77,8 +77,8 @@ def main():
         return 1
 
     try:
-        # gpt-oss models always "think" first and that thinking uses output
-        # tokens, so allow a generous budget for a one-word reply.
+        # This model always "thinks" before answering, and the thinking counts
+        # toward the reply's length limit, so allow plenty even for a short reply.
         client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": "Reply with the word ok."}],

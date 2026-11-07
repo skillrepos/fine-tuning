@@ -109,8 +109,8 @@ else:
 
     tmp = tempfile.mkdtemp(prefix="ft-verify-")
     try:
-        # A tiny randomly-initialised Llama-style model (same architecture
-        # family as SmolLM2), so the test needs no download.
+        # A tiny made-up model built the same way as SmolLM2, so the test
+        # needs no download.
         torch.manual_seed(0)
         cfg = LlamaConfig(vocab_size=512, hidden_size=256, intermediate_size=512,
                           num_hidden_layers=2, num_attention_heads=4,

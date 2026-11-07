@@ -322,10 +322,9 @@ copies.
 
 <br><br>
 
-9. Look at **STEP 7**. Expect `right format` to jump dramatically while
-`category correct` lags behind. That gap is the lesson:
-**learning a format is easy; learning to pick the right category takes a more
-capable model.**
+9. Compare **STEP 7** with Lab 1's best-prompt row, the score to beat. The
+trained 82M model wins on category and queue — **a small trained model beats a
+bigger prompted one.** Priority doesn't move.
 
 <br><br>
 
@@ -448,9 +447,10 @@ progress, not how much LoRA alone helped.)
 - **Smaller adapter (about 4 minutes).** In STEP 3 of your file, change `r=16`
   to `r=8` and `lora_alpha=32` to `16`. The trained percentage should halve and
   the adapter file shrink; STEP 8 shows whether the scores suffer.
-- **DoRA (about 10 minutes on a CPU — best done at home).** Set
-  `use_dora=True`. DoRA is a LoRA variation that often does a little better
-  with small adapters, but both training and testing are noticeably slower.
+- **DoRA (about 10 minutes on a CPU — best done at home).** Add
+  `use_dora=True,` to the LoRA settings in STEP 3. DoRA is a LoRA variation
+  that often does a little better with small adapters, but both training and
+  testing are noticeably slower.
 
 Lab 5 uses the adapter this lab saves, so put the settings back and rerun
 before you move on.

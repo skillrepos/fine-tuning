@@ -118,7 +118,7 @@ print("STEP 5: How long is each example, in tokens?")
 print("=" * 70)
 
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
-tokenizer.pad_token = tokenizer.eos_token   # GPT-2 has no padding token; fine here, we only count
+tokenizer.pad_token = tokenizer.eos_token   # GPT-2 has no filler (padding) token; use its end token
 
 lengths = [
     len(tokenizer(r["prompt"] + r["completion"])["input_ids"])

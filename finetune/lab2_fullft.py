@@ -5,9 +5,9 @@ Full fine-tuning updates every number (parameter) in the model. Labs 3 and 4
 use cheaper methods, LoRA and QLoRA, and are compared with this one -- both
 for how good the answers are and for what the training costs.
 
-We use distilgpt2 (82 million parameters -- a smaller, 6-layer version of the
-124-million-parameter GPT-2) because it is about the largest model you can
-fully fine-tune on 4 CPU cores in a couple of minutes.
+We use distilgpt2 (82 million parameters -- a smaller version of GPT-2)
+because it is about the largest model you can fully fine-tune on 4 CPU cores
+in a couple of minutes.
 """
 
 import sys, os, time
@@ -77,7 +77,7 @@ def tokenize(example):
     # TODO 1: build the full training text -- the prompt, then the correct
     #         answer, then the end-of-text token (tokenizer.eos_token) so the
     #         model learns where to stop. Then split it into tokens, keeping
-    #         at most 192.
+    #         at most 192 (far more than any ticket needs).
     text = ""
     return tokenizer(text, truncation=True, max_length=192)
 
@@ -103,8 +103,8 @@ print("\n" + "=" * 70)
 print("STEP 3: Group examples and pad them to the same length")
 print("=" * 70)
 
-# TODO 2: build the batching helper (collator) for a model that writes
-#         text left to right -- that is what mlm=False means.
+# TODO 2: build the batching helper (collator) that pads each group of
+#         examples to the same length. Use mlm=False (guess the next word).
 collator = None
 batch = collator([tokenized["train"][i] for i in range(4)])
 # Pick the SHORTEST example in the group -- it is the one that got padded.
@@ -132,9 +132,9 @@ print("STEP 4: Choose the training settings")
 print("=" * 70)
 
 # TODO 3: fill in the training settings: 2 passes over the data (epochs),
-#         8 examples per batch, learning rate 3e-4 that slowly shrinks
-#         (cosine), a loss report every 5 steps, no saving copies along the
-#         way, no outside tracking tools, and CPU only.
+#         8 examples per batch, learning rate 0.0003 (3e-4), slowly shrinking
+#         (cosine), a loss report every 5 steps, no extra saved copies, and
+#         CPU only.
 args = TrainingArguments(
     output_dir=OUTPUT_DIR,
 )
@@ -150,8 +150,8 @@ print("\n" + "=" * 70)
 print("STEP 5: Train (about 2-4 minutes on 4 CPU cores)")
 print("=" * 70)
 
-# TODO 4: build the Trainer. Careful: in current versions of the
-#         transformers library, the tokenizer goes in processing_class=.
+# TODO 4: build the Trainer: the model, the settings (args), the training
+#         data, the collator, and the tokenizer -- passed as processing_class=.
 trainer = Trainer(
     model=model,
     args=args,
@@ -208,10 +208,7 @@ save_result("fullft_distilgpt2", s, {
 })
 
 print("""
-  Compare with Lab 1's best-prompt score -- the score to beat.
-
-  Expect "right format" to jump -- the model learns the shape of the answer
-  almost at once. "category correct" will be much lower. A model with 82
-  million numbers can learn a format; working out which category a ticket
-  belongs to needs a bigger model. That is Lab 3.
+  Compare with Lab 1's best-prompt row, the score to beat. Category and
+  queue should be clearly higher: a small trained model beats a bigger
+  prompted one. Priority usually doesn't move.
 """)

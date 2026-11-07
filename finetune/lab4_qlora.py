@@ -37,10 +37,10 @@ from common.triage import (
 )
 
 BASE_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"   # same model as Lab 3
-BIG_MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"     # Step 8: memory only
+BIG_MODEL = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"     # STEP 8: memory only
 ADAPTER_DIR = os.path.join(OUT_DIR, "smollm2-qlora")
 MERGED_DIR = os.path.join(OUT_DIR, "smollm2-qlora-merged")
-QLORA_STEPS = 4           # far too few to train fully -- see Step 5
+QLORA_STEPS = 4           # far too few to train fully -- see STEP 5
 QLORA_BATCH = 2           # examples per step; 4-bit on a CPU slows down a lot with more
 N_EVAL = 20
 
@@ -79,8 +79,8 @@ print("=" * 70)
 
 # TODO 1: build the 4-bit settings -- the "nf4" format, math done in
 #         16 bits (bfloat16), and the extra memory saver (double quant) on.
-#         Then load the model with them by passing quantization_config=
-#         (the old shortcut, load_in_4bit=True on its own, no longer works).
+#         Then load the model, passing them as quantization_config=
+#         so the model is stored in 4 bits.
 bnb_config = None
 
 model = AutoModelForCausalLM.from_pretrained(
@@ -121,7 +121,7 @@ print("""
   The "nf4" format places its 16 possible values where a trained model's
   numbers actually tend to fall.
 
-  The catch, which Step 5 will measure: 4 bits saves MEMORY but, on a CPU,
+  The catch, which STEP 5 will measure: 4 bits saves MEMORY but, on a CPU,
   costs a lot of SPEED. Before every calculation the numbers have to be
   unpacked back to 16 bits, and the 4-bit library has no fast way to do that
   on a CPU -- it was built for graphics cards (GPUs). On a GPU that is short
@@ -191,15 +191,11 @@ args = TrainingArguments(
     max_steps=QLORA_STEPS,
     per_device_train_batch_size=QLORA_BATCH,
     learning_rate=1e-3,
-    warmup_steps=0,             # no easing in
     lr_scheduler_type="constant", # keep the learning rate the same throughout
     logging_steps=1,            # report the loss every step
-    save_strategy="no",         # don't save copies during training
-    eval_strategy="no",         # don't stop to test during training
-    report_to="none",           # don't send results to outside tracking tools
-    use_cpu=True,
-    optim="adamw_torch",        # the standard method for applying each update
-    seed=42,
+    save_strategy="no",         # don't save extra copies of the model while training
+    use_cpu=True,               # run on the processor, not a graphics card
+    optim="adamw_torch",        # the update rule: AdamW, a version of Adam (see slides)
 )
 
 trainer = Trainer(
@@ -306,7 +302,7 @@ print("""
   suits how you will use it.
 
   These save steps are the same whether the adapter trained for 4 steps or
-  4,000. What our 4-step adapter actually learned is another matter -- Step 7.
+  4,000. What our 4-step adapter actually learned is another matter -- STEP 7.
 """)
 
 
@@ -381,7 +377,7 @@ print(f"""
   in Lab 3 at 32 bits. Storing at 4 bits lets the same machine fine-tune a
   model about three times bigger.
 
-  On a GPU you would start training now. Here we stop: going by Step 5's
+  On a GPU you would start training now. Here we stop: going by STEP 5's
   timing, one 4-bit step of a model this size would take minutes on a CPU.
 
   OPTIONAL, AT HOME ON A GPU: set BASE_MODEL to TinyLlama and nothing else in
@@ -393,5 +389,5 @@ print(f"""
   more edit, because Phi-3 names its layers differently: target_modules
   becomes ["qkv_proj", "o_proj", "gate_up_proj", "down_proj"]. Keep the old
   names and the PEFT library stops with an error saying no layers matched --
-  the same layer-name check as Lab 3 Step 2.
+  the same layer-name check as Lab 3's STEP 2.
 """)

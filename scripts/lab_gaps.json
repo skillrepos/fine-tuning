@@ -1,88 +1,120 @@
 {
- "lab1_prep": [
-  [
-   "formatted = ds.map(to_prompt_completion)",
-   "# TODO 1: run every row through to_prompt_completion() so each row gains\n#         a \"prompt\" and a \"completion\" column.\nformatted = None"
+  "lab1_prep": [
+    [
+      "formatted = ds.map(to_prompt_completion)\n",
+      "# TODO 1: run every row through to_prompt_completion() so each row gains\n#         a \"prompt\" and a \"completion\" column.\nformatted = None\n"
+    ],
+    [
+      "rendered = chat_tok.apply_chat_template(messages, tokenize=False,\n                                        add_generation_prompt=True)\n",
+      "# TODO 2: use the tokenizer to turn `messages` into chat-format text.\n#         Ask for plain text (tokenize=False) that ends where the\n#         model's reply should start (add_generation_prompt=True).\nrendered = None\n"
+    ],
+    [
+      "preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24, show=3)\n",
+      "# TODO 3: get the model's answer for each test ticket. Show the first 3.\npreds = None\n"
+    ],
+    [
+      "s = score(preds, eval_rows)\n",
+      "# TODO 4: score the answers against the correct labels.\ns = None\n"
+    ]
   ],
-  [
-   "rendered = chat_tok.apply_chat_template(messages, tokenize=False,\n                                        add_generation_prompt=True)",
-   "# TODO 2: use the tokenizer to turn `messages` into chat-format text.\n#         Ask for plain text (tokenize=False) that ends where the\n#         model's reply should start (add_generation_prompt=True).\nrendered = None"
+  "lab2_fullft": [
+    [
+      "    text = build_prompt(example[\"ticket\"]) + example[\"label\"] + tokenizer.eos_token\n",
+      "    # TODO 1: build the full training text -- the prompt, then the correct\n    #         answer, then the end-of-text token (tokenizer.eos_token) so the\n    #         model learns where to stop. Then split it into tokens, keeping\n    #         at most 192 (far more than any ticket needs).\n    text = \"\"\n"
+    ],
+    [
+      "collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)\n",
+      "# TODO 2: build the batching helper (collator) that pads each group of\n#         examples to the same length. Use mlm=False (guess the next word).\ncollator = None\n"
+    ],
+    [
+      "args = TrainingArguments(\n",
+      "# TODO 3: fill in the training settings: 2 passes over the data (epochs),\n#         8 examples per batch, learning rate 0.0003 (3e-4), slowly shrinking\n#         (cosine), a loss report every 5 steps, no extra saved copies, and\n#         CPU only.\nargs = TrainingArguments(\n"
+    ],
+    [
+      "    num_train_epochs=2,\n    per_device_train_batch_size=8,\n    learning_rate=3e-4,\n    warmup_steps=0.05,          # ease in: raise the learning rate over the first 5% of steps\n    lr_scheduler_type=\"cosine\", # ...then lower it slowly toward zero\n    logging_steps=5,            # report the loss every 5 steps\n    save_strategy=\"no\",         # don't save extra copies of the model while training\n    use_cpu=True,               # run on the computer's processor, not a graphics card\n",
+      ""
+    ],
+    [
+      "trainer = Trainer(\n",
+      "# TODO 4: build the Trainer: the model, the settings (args), the training\n#         data, the collator, and the tokenizer -- passed as processing_class=.\ntrainer = Trainer(\n"
+    ],
+    [
+      "    train_dataset=tokenized[\"train\"],\n    data_collator=collator,\n    processing_class=tokenizer,   # the tokenizer from STEP 1\n",
+      ""
+    ]
   ],
-  [
-   "preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24, show=3)",
-   "# TODO 3: get the model's answer for each test ticket. Show the first 3.\npreds = None"
+  "lab3_lora": [
+    [
+      "peft_config = LoraConfig(\n",
+      "# TODO 1: add the rest of the LoRA settings, including which layers get\n#         adapters (the names STEP 2 printed).\npeft_config = LoraConfig(\n"
+    ],
+    [
+      "    r=16,                    # adapter size: bigger can learn more\n    lora_alpha=32,           # how strongly the adapter counts (usually 2 x r)\n    lora_dropout=0.05,       # ignore 5% of adapter values at random while training (stops memorizing)\n    task_type=\"CAUSAL_LM\",   # a model that writes text, one token at a time\n    # Every layer name STEP 2 printed except lm_head, the last layer, which\n    # picks the next word. It is left as it is.\n    target_modules=[\"q_proj\", \"k_proj\", \"v_proj\", \"o_proj\",\n                    \"gate_proj\", \"up_proj\", \"down_proj\"],\n",
+      "    r=16,\n    lora_alpha=32,\n"
+    ],
+    [
+      "peft_model = get_peft_model(model, peft_config)\nparam_report(peft_model, \"SmolLM2-360M with LoRA adapters\")\n",
+      "# TODO 2: add the LoRA adapters to the model, then print how much of it\n#         will be trained.\npeft_model = None\n"
+    ],
+    [
+      "    labels = [-100] * len(prompt_ids) + full_ids[len(prompt_ids):]\n",
+      "    # TODO 3: build the labels (what the model is graded on): -100 for every\n    #         prompt position, and the answer's own token numbers.\n    labels = full_ids\n"
+    ],
+    [
+      "trainer = Trainer(\n",
+      "# TODO 4: build the Trainer from the model with adapters, the training data,\n#         and the padding helper (collator) above.\ntrainer = Trainer(\n"
+    ],
+    [
+      "    train_dataset=tokenized[\"train\"],\n    data_collator=collator,\n    processing_class=tokenizer,\n",
+      ""
+    ]
   ],
-  [
-   "s = score(preds, eval_rows)",
-   "# TODO 4: score the answers against the correct labels.\ns = None"
+  "lab4_qlora": [
+    [
+      "bnb_config = BitsAndBytesConfig(\n    load_in_4bit=True,\n    bnb_4bit_quant_type=\"nf4\",              # a 4-bit format designed for model numbers\n    bnb_4bit_compute_dtype=torch.bfloat16,  # unpacked to 16 bits for each calculation\n    bnb_4bit_use_double_quant=True,         # also shrink the extra scaling numbers\n)\n",
+      "# TODO 1: build the 4-bit settings -- the \"nf4\" format, math done in\n#         16 bits (bfloat16), and the extra memory saver (double quant) on.\n#         Then load the model, passing them as quantization_config=\n#         so the model is stored in 4 bits.\nbnb_config = None\n"
+    ],
+    [
+      "    quantization_config=bnb_config,         # hand the 4-bit settings to the loader\n",
+      ""
+    ],
+    [
+      "# Skip a memory-saving trick that would make training even slower.\nmodel = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)\n\n",
+      "# TODO 2: get the 4-bit model ready for training (this switches a few\n#         delicate layers to full size so training stays steady), then\n#         build LoRA settings IDENTICAL to Lab 3's.\n"
+    ],
+    [
+      "    lora_dropout=0.05,\n    task_type=\"CAUSAL_LM\",\n    target_modules=[\"q_proj\", \"k_proj\", \"v_proj\", \"o_proj\",\n                    \"gate_proj\", \"up_proj\", \"down_proj\"],\n",
+      ""
+    ],
+    [
+      "merged = PeftModel.from_pretrained(base, ADAPTER_DIR)\nmerged = merged.merge_and_unload()\n",
+      "# TODO 3: attach the saved adapter to the normal 16-bit model with\n#         PeftModel.from_pretrained, then fold the adapter into the model\n#         so it becomes one ordinary model again.\nmerged = base\n"
+    ]
+  ],
+  "lab5_eval": [
+    [
+      "    r = results[key]\n",
+      "    # TODO 1: print one table row per run -- format, category, priority,\n    #         queue, file size (MB), step count, training seconds.\n    r = results[key]\n"
+    ],
+    [
+      "    print(f\"{LABEL[key]:38s} {r['schema_valid']:7.1%} {r['category_acc']:8.1%} \"\n          f\"{r['priority_acc']:8.1%} {r['queue_acc']:6.1%} \"\n          f\"{r.get('artifact_mb', '-'):>7} {r.get('steps', '-'):>6} \"\n          f\"{r.get('train_seconds', '-'):>6}\")\n",
+      "    print(f\"{LABEL[key]:38s}\")\n"
+    ],
+    [
+      "model = PeftModel.from_pretrained(base, LORA_DIR)\n",
+      "# TODO 2: attach the Lab 3 adapter from LORA_DIR to the base model.\nmodel = base\n"
+    ],
+    [
+      "    per[row[\"category\"]][1] += 1\n",
+      "    # TODO 3: count one attempt for this ticket's correct category, a hit\n    #         when the model's answer matches, and otherwise the mix-up.\n    per[row[\"category\"]][1] += 1\n"
+    ],
+    [
+      "    if got == row[\"category\"]:\n        per[row[\"category\"]][0] += 1\n    else:\n        confusions[(row[\"category\"], got)] += 1\n",
+      ""
+    ],
+    [
+      "groq_preds = groq_predictions(eval_rows, model=FRONTIER, show=2)\n",
+      "# TODO 4 (optional step): ask the large hosted model to answer each test\n#         ticket. Show the first 2. Returns None if there is no GROQ_API_KEY.\ngroq_preds = None\n"
+    ]
   ]
- ],
- "lab2_fullft": [
-  [
-   "    text = build_prompt(example[\"ticket\"]) + example[\"label\"] + tokenizer.eos_token",
-   "    # TODO 1: build the full training text -- the prompt, then the correct\n    #         label, then the end token (eos_token) so the model learns\n    #         where to stop. Then turn it into tokens, cut off at 192.\n    text = \"\""
-  ],
-  [
-   "collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)",
-   "# TODO 2: build the batching helper (collator) for a model that writes\n#         text left to right -- that is what mlm=False means.\ncollator = None"
-  ],
-  [
-   "args = TrainingArguments(\n    output_dir=OUTPUT_DIR,\n    num_train_epochs=2,\n    per_device_train_batch_size=8,\n    learning_rate=3e-4,\n    warmup_steps=0.05,          # below 1 means a share of all steps (5%)\n    lr_scheduler_type=\"cosine\",\n    logging_steps=5,\n    save_strategy=\"no\",\n    eval_strategy=\"no\",\n    report_to=\"none\",\n    use_cpu=True,               # run on the CPU (older versions: no_cuda)\n    seed=42,",
-   "# TODO 3: fill in the training settings: 2 passes over the data (epochs),\n#         8 examples per batch, learning rate 3e-4 that slowly shrinks\n#         (cosine), a progress line every 5 steps, no checkpoint saving,\n#         no outside reporting tools, and CPU only.\nargs = TrainingArguments(\n    output_dir=OUTPUT_DIR,"
-  ],
-  [
-   "trainer = Trainer(\n    model=model,\n    args=args,\n    train_dataset=tokenized[\"train\"],\n    data_collator=collator,\n    processing_class=tokenizer,   # the tokenizer (older versions: tokenizer=)",
-   "# TODO 4: build the Trainer. Careful: in current versions of the\n#         transformers library, the tokenizer goes in processing_class=.\ntrainer = Trainer(\n    model=model,\n    args=args,"
-  ]
- ],
- "lab3_lora": [
-  [
-   "peft_config = LoraConfig(\n    r=16,                    # adapter size: bigger can learn more\n    lora_alpha=32,           # how strongly the adapter counts (usually 2 x r)\n    lora_dropout=0.05,       # skip a few adapter values at random while training\n    bias=\"none\",\n    task_type=\"CAUSAL_LM\",   # a model that writes text, one token at a time\n    target_modules=[\"q_proj\", \"k_proj\", \"v_proj\", \"o_proj\",   # the layer names\n                    \"gate_proj\", \"up_proj\", \"down_proj\"],    # from Step 2\n    use_dora=False,          # the optional step at the end of the lab turns this on",
-   "# TODO 1: set up LoRA -- adapter size (r) 16, strength (lora_alpha) 32,\n#         dropout 0.05, no bias, a text-writing model (CAUSAL_LM), and the\n#         seven layer names from Step 2. Leave use_dora=False for now.\npeft_config = LoraConfig(\n    r=16,\n    lora_alpha=32,"
-  ],
-  [
-   "peft_model = get_peft_model(model, peft_config)\npeft_model.print_trainable_parameters()",
-   "# TODO 2: add the LoRA adapters to the model, then print how much of it\n#         will be trained.\npeft_model = None"
-  ],
-  [
-   "    labels = [-100] * len(prompt_ids) + full_ids[len(prompt_ids):]",
-   "    # TODO 3: build the labels (what the model is graded on): -100 for every\n    #         prompt position, and the real token ids for the answer.\n    labels = full_ids"
-  ],
-  [
-   "trainer = Trainer(\n    model=peft_model,\n    args=args,\n    train_dataset=tokenized[\"train\"],\n    data_collator=collator,\n    processing_class=tokenizer,",
-   "# TODO 4: build the Trainer from the model with adapters, the training data,\n#         and the collator above.\ntrainer = Trainer(\n    model=peft_model,\n    args=args,"
-  ]
- ],
- "lab4_qlora": [
-  [
-   "bnb_config = BitsAndBytesConfig(\n    load_in_4bit=True,\n    bnb_4bit_quant_type=\"nf4\",              # a 4-bit format suited to model weights\n    bnb_4bit_compute_dtype=torch.bfloat16,  # unpacked to 16-bit for the math\n    bnb_4bit_use_double_quant=True,         # also shrink the extra scaling numbers\n)\n\nmodel = AutoModelForCausalLM.from_pretrained(\n    BASE_MODEL,\n    quantization_config=bnb_config,         # required (load_in_4bit=True alone fails)",
-   "# TODO 1: build the 4-bit settings -- the \"nf4\" format, math done in\n#         bfloat16, and double quantization on. Then load the model with\n#         them by passing quantization_config= (current versions no\n#         longer accept load_in_4bit=True on its own).\nbnb_config = None\n\nmodel = AutoModelForCausalLM.from_pretrained(\n    BASE_MODEL,"
-  ],
-  [
-   "model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=False)\n\npeft_config = LoraConfig(\n    r=16,\n    lora_alpha=32,\n    lora_dropout=0.05,\n    bias=\"none\",\n    task_type=\"CAUSAL_LM\",\n    target_modules=[\"q_proj\", \"k_proj\", \"v_proj\", \"o_proj\",\n                    \"gate_proj\", \"up_proj\", \"down_proj\"],",
-   "# TODO 2: get the 4-bit model ready for training (this switches a few\n#         sensitive layers back to higher precision so training stays\n#         stable), then build LoRA settings IDENTICAL to Lab 3's.\npeft_config = LoraConfig(\n    r=16,\n    lora_alpha=32,"
-  ],
-  [
-   "merged = PeftModel.from_pretrained(base, ADAPTER_DIR)\nmerged = merged.merge_and_unload()",
-   "# TODO 3: attach the saved adapter to the normal (bfloat16) model with\n#         PeftModel.from_pretrained, then fold the adapter into the model\n#         so it becomes one ordinary model again.\nmerged = base"
-  ]
- ],
- "lab5_eval": [
-  [
-   "    r = results[key]\n    print(f\"{LABEL[key]:38s} {r['schema_valid']:7.1%} {r['category_acc']:8.1%} \"\n          f\"{r['priority_acc']:8.1%} {r['queue_acc']:6.1%} \"\n          f\"{r.get('artifact_mb', '-'):>7} {r.get('steps', '-'):>6} \"\n          f\"{r.get('train_seconds', '-'):>6}\")",
-   "    # TODO 1: print one table row per run -- format, category, priority,\n    #         queue, artifact size, step count, training seconds.\n    r = results[key]\n    print(f\"{LABEL[key]:38s}\")"
-  ],
-  [
-   "model = PeftModel.from_pretrained(base, LORA_DIR)",
-   "# TODO 2: attach the Lab 3 adapter from LORA_DIR to the base model.\nmodel = base"
-  ],
-  [
-   "    per[row[\"category\"]][1] += 1\n    if got == row[\"category\"]:\n        per[row[\"category\"]][0] += 1\n    else:\n        confusions[(row[\"category\"], got)] += 1",
-   "    # TODO 3: count one attempt for this true category, count a hit when\n    #         the prediction matches, otherwise record the mix-up pair.\n    per[row[\"category\"]][1] += 1"
-  ],
-  [
-   "groq_preds = groq_predictions(eval_rows, model=FRONTIER, show=2)",
-   "# TODO 4 (optional step): ask the large hosted model to answer each test\n#         ticket. Show the first 2. Returns None if there is no GROQ_API_KEY.\ngroq_preds = None"
-  ]
- ]
 }

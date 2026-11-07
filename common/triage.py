@@ -136,10 +136,10 @@ def to_prompt_completion(example):
 # --------------------------------------------------------------------------
 
 def generate_predictions(model, tokenizer, rows, max_new_tokens=24, show=0):
-    """Run greedy generation over `rows` and return the raw predicted strings.
+    """Get the model's answer to every row, as plain text.
 
-    Greedy (do_sample=False) because this is a classification-style task: we
-    want the single most likely triage line, not a creative one.
+    do_sample=False makes the model always pick its most likely next word, so
+    we get its single best triage line, not a creative one.
     """
     model.eval()
     preds = []
@@ -388,7 +388,7 @@ def model_size_mb(model):
     """Approximate in-memory size of the model's parameters, in MB."""
     total = 0
     for p in model.parameters():
-        # 4-bit weights are stored packed in uint8, so element_size() is 1
+        # 4-bit numbers are stored two per byte, so each stored item is 1 byte
         total += p.numel() * p.element_size()
     for b in model.buffers():
         total += b.numel() * b.element_size()
@@ -399,25 +399,21 @@ def model_size_mb(model):
 # Optional: compare with a huge hosted model on Groq
 # --------------------------------------------------------------------------
 
-# Groq retires hosted models on a regular cadence. The model this workshop
-# originally used, `llama-3.3-70b-versatile`, was DECOMMISSIONED on 2026-08-16.
-# If this step suddenly 404s, that is almost certainly why: check
-# https://console.groq.com/docs/deprecations and change the two constants below.
-# Nothing else in the workshop depends on them.
+# Groq retires hosted models from time to time. If this step says the model
+# is not found, pick another one (python scripts/check_groq.py lists them, and
+# https://console.groq.com/docs/deprecations names the replacements) and change
+# the two settings below. Nothing else in the workshop depends on them.
 #
-# That churn is not a footnote -- it is one of the arguments for fine-tuning a
-# model you own, and Lab 5 Step 6 makes the point explicitly.
-FRONTIER_MODEL = "openai/gpt-oss-120b"   # 120B MoE (~5B active per token).
-                                         # Groq's own recommended replacement.
+# That is also one of the arguments for fine-tuning a model you own: Lab 5's
+# STEP 6 makes the point.
+FRONTIER_MODEL = "openai/gpt-oss-120b"   # 120 billion numbers, about 5 billion
+                                         # used for each word it writes
 
-# gpt-oss models ALWAYS reason -- reasoning cannot be switched off, only turned
-# down. Two consequences for a 1-line classification task:
-#   reasoning_effort="low"     keeps the thinking short
-#   reasoning_format="hidden"  keeps it out of the reply, so `content` is just
-#                              the triage line
-# And reasoning tokens are drawn from the OUTPUT budget, so the 48 tokens this
-# task needs is no longer a safe cap: too small a budget gets spent thinking and
-# returns an EMPTY content string with finish_reason="length".
+# This model always "thinks" before it answers; that can be turned down but not
+# off. The settings below keep the thinking short and leave it out of the reply,
+# so the reply is just the triage line. The thinking counts toward the reply's
+# length limit, so the limit is well above what the triage line needs -- set it
+# too low and the reply comes back empty.
 FRONTIER_KWARGS = {
     "reasoning_effort": "low",
     "reasoning_format": "hidden",
@@ -429,7 +425,7 @@ def groq_predictions(rows, model=FRONTIER_MODEL, show=0, **model_kwargs):
     """Answers from a large hosted model, prompt only (no training), for comparison.
 
     Returns None if the groq package is missing, GROQ_API_KEY is not set, or the
-    API call fails -- this is an optional step and every lab must run without it.
+    request fails -- this step is optional and every lab must run without it.
     """
     if not os.environ.get("GROQ_API_KEY"):
         return None
@@ -439,9 +435,9 @@ def groq_predictions(rows, model=FRONTIER_MODEL, show=0, **model_kwargs):
         print("  (groq package not installed -- pip install groq)")
         return None
 
-    # The SDK already retries 429s on its own (twice by default), honouring the
-    # Retry-After header. We raise that a little because a whole classroom hits
-    # the free tier's 30 requests/minute at the same moment.
+    # When Groq answers "too many requests", its library waits and tries again
+    # (twice by default). We allow more tries because a whole class sends
+    # requests at once, and the free plan allows 30 per minute.
     client = Groq(max_retries=5)
     kwargs = {**FRONTIER_KWARGS, **model_kwargs}
 
@@ -459,9 +455,9 @@ def groq_predictions(rows, model=FRONTIER_MODEL, show=0, **model_kwargs):
                 **kwargs,
             )
         except Exception as e:
-            # A non-reasoning model will reject the reasoning_* arguments. Drop
-            # them and try once more, so swapping FRONTIER_MODEL stays a
-            # one-line change.
+            # A model that doesn't "think" first rejects the two thinking
+            # settings. Drop them and try once more, so switching models only
+            # needs FRONTIER_MODEL changed.
             if type(e).__name__ == "BadRequestError" and any(
                     k.startswith("reasoning") for k in kwargs):
                 kwargs = {k: v for k, v in kwargs.items()
