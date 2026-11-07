@@ -1,6 +1,6 @@
 # Fine-Tuning Small AI Models: LoRA, QLoRA & Evaluation
 
-## Revision 1.12 - 11/07/26
+## Revision 1.13 - 11/07/26
 
 **Workshop labs**
 
@@ -132,6 +132,8 @@ markers like `<|im_start|>`. Each model family has its own markers;
 8. Look at **STEP 5**. The tickets are short — around 50-70 tokens (word
 pieces) each — which is why this workshop can train on an ordinary CPU.
 
+![Lab 1 token counts](./images/ft-lab1-tokens.png?raw=true "STEP 5: how long each example is, in tokens")
+
 <br><br>
 
 9. Now **STEP 7 and STEP 8**. STEP 7 gives distilgpt2 20 test tickets with
@@ -226,6 +228,8 @@ left — and save:
 code -d extra/lab2_fullft_complete.txt finetune/lab2_fullft.py
 ```
 
+![Diff-merge view for Lab 2](./images/ft-lab2-diff.png?raw=true "Merging the completed Lab 2 code")
+
 <br><br>
 
 3. Run it. **Training takes about 2-4 minutes** — start it now and read the
@@ -241,6 +245,8 @@ python finetune/lab2_fullft.py
 parameters — the numbers inside the model that training adjusts — will be
 trained: `100.0000%`. Remember that number; in Lab 3 the same line reads about
 **2.3%**.
+
+![Lab 2 STEP 1 output](./images/ft-lab2-trainable.png?raw=true "STEP 1: every parameter trainable, and two different tokens for padding and end-of-text")
 
 <br><br>
 
@@ -264,6 +270,8 @@ padding begins, and which tokens are graded:
 `-100` means "skip this one when grading": the padding (50257) is skipped,
 while the end-of-text token (50256) is still graded.
 
+![Lab 2 STEP 3 output](./images/ft-lab2-padding.png?raw=true "STEP 3: padding is skipped when grading; the end-of-text token is not")
+
 <br><br>
 
 7. Watch the training loss — how wrong the model's guesses are — fall from
@@ -280,6 +288,8 @@ whether that works on new tickets.
 training took, and the size of the saved model (a few hundred MB). Retraining
 everything produces a whole new copy of the model — ten customers means ten
 copies.
+
+![Lab 2 training time and model size](./images/ft-lab2-saved.png?raw=true "STEP 5 and STEP 6: training time and the size of the saved model")
 
 <br><br>
 
@@ -340,6 +350,8 @@ left — and save:
 code -d extra/lab3_lora_complete.txt finetune/lab3_lora.py
 ```
 
+![Diff-merge view for Lab 3](./images/ft-lab3-diff.png?raw=true "Merging the completed Lab 3 code")
+
 <br><br>
 
 3. Run it. **Budget about 5 minutes** — about 1 minute to load the model,
@@ -354,6 +366,8 @@ python finetune/lab3_lora.py
 4. Look at **STEP 2**. It lists the layers where LoRA can attach adapters. The
 names differ between kinds of model, so always use the ones the model itself
 reports.
+
+![Lab 3 STEP 2 output](./images/ft-lab3-layers.png?raw=true "STEP 2: the layers LoRA can attach adapters to")
 
 <br><br>
 
@@ -378,17 +392,23 @@ labels = [-100] * len(prompt_ids) + full_ids[len(prompt_ids):]
 The script prints something like `53 tokens, 36 from the prompt (not graded),
 17 graded`. Lab 2 also graded the model on repeating the ticket back.
 
+![Lab 3 STEP 5 output](./images/ft-lab3-masking.png?raw=true "STEP 5: only the answer is graded")
+
 <br><br>
 
 7. Watch the training loss fall. This lab uses a bigger learning rate (step
 size) than Lab 2, `1e-3` instead of `3e-4`, which is safe because only the
 small adapter is changing.
 
+![Lab 3 training loss falling](./images/ft-lab3-training.png?raw=true "STEP 6: training loss during LoRA training")
+
 <br><br>
 
 8. Look at **STEP 7**. The saved adapter is a few tens of MB; a full copy of the
 model would be about 1.4 GB. One shared model, plus a small adapter per task or
 customer.
+
+![Lab 3 adapter size](./images/ft-lab3-adapter.png?raw=true "STEP 7: the adapter is tens of MB; a full copy would be about 1.4 GB")
 
 <br><br>
 
@@ -458,6 +478,8 @@ left — and save:
 code -d extra/lab4_qlora_complete.txt finetune/lab4_qlora.py
 ```
 
+![Diff-merge view for Lab 4](./images/ft-lab4-diff.png?raw=true "Merging the completed Lab 4 code")
+
 <br><br>
 
 3. Run it. **This one takes about 6-7 minutes** — the 4 training steps take
@@ -481,13 +503,15 @@ python finetune/lab4_qlora.py
 Not a full 8 times smaller than 32-bit: some parts of the model stay
 uncompressed. The bigger the model, the closer you get.
 
+![Lab 4 STEP 1 and STEP 2 output](./images/ft-lab4-sizes.png?raw=true "The same model at 16, 32 and 4 bits")
+
 <br><br>
 
 5. Look at **STEP 3**, inside one compressed layer: two 4-bit numbers per byte,
 compressed in groups of 64, each group with its own scale. `nf4` is the 4-bit
 format QLoRA uses.
 
-![Lab 4 memory comparison and a look inside a 4-bit layer](./images/ft-lab4-memory.png?raw=true "4-bit memory use")
+![Lab 4 STEP 3 output](./images/ft-lab4-memory.png?raw=true "STEP 3: inside one 4-bit layer")
 
 <br><br>
 
@@ -503,12 +527,16 @@ Lab 3 also handled four times as many examples per step, so per example 4-bit
 is 20-30 times slower here. **Takeaway:** use QLoRA when memory is the problem;
 if the model already fits, plain LoRA is faster.
 
+![Lab 4 STEP 5 output](./images/ft-lab4-training.png?raw=true "STEP 5: the loss falls at 4 bits, but each step is slow on a CPU")
+
 <br><br>
 
 7. Look at **STEP 6**, the merge: folding the adapter permanently into the
 model, so you ship one ordinary model. We trained on the 4-bit model but merge
 into a fresh full-size (16-bit) copy; merging into the compressed copy would
 make its accuracy loss permanent.
+
+![Lab 4 STEP 6 output](./images/ft-lab4-merge.png?raw=true "STEP 6: the adapter folded into a 16-bit copy")
 
 <br><br>
 
@@ -522,6 +550,8 @@ dedicated use; keep adapters separate for many customers or tasks.
 4 training steps: that shows how much the amount of training matters, not that
 QLoRA is worse than LoRA.
 
+![Lab 4 STEP 7 scores](./images/ft-lab4-scores.png?raw=true "STEP 7: poor scores after only 4 training steps")
+
 **Homework:** a fair test (24 steps, same settings) takes about 70 minutes on a
 CPU. Set `QLORA_STEPS = 24` and `QLORA_BATCH = 8`, run it, and compare with
 Lab 3's row in `out/results.json`. Published research found almost no
@@ -532,6 +562,8 @@ difference in quality.
 10. Look at **STEP 8**. TinyLlama, a 1.1-billion-parameter model, loaded in
 4-bit takes less memory than Lab 3's 360-million-parameter model did at full
 size. On the same hardware, you can fine-tune a model about three times bigger.
+
+![Lab 4 STEP 8 output](./images/ft-lab4-tinyllama.png?raw=true "STEP 8: TinyLlama 1.1B loaded in 4 bits")
 
 <br><br>
 
@@ -605,6 +637,8 @@ whether or not you have a key:
 code -d extra/lab5_eval_complete.txt finetune/lab5_eval.py
 ```
 
+![Diff-merge view for Lab 5](./images/ft-lab5-diff.png?raw=true "Merging the completed Lab 5 code")
+
 <br><br>
 
 5. Run it:
@@ -651,6 +685,8 @@ examples of it.
 model is confused or your labels are unclear — different problems, different
 fixes.
 
+![Lab 5 STEP 4 output](./images/ft-lab5-failures.png?raw=true "STEP 4: four tickets the model got wrong")
+
 <br><br>
 
 9. Look at **STEP 5**, the general-knowledge scores before and after training:
@@ -666,6 +702,8 @@ Expect changes near zero — with 20 questions, one answer moves a score by 0.05
 so a small change is noise. Watch for a **big drop**, called *catastrophic
 forgetting*: the model got worse at everything except your task. The fix is
 gentler training, or mixing general examples into the training data.
+
+![Lab 5 STEP 5 output](./images/ft-lab5-harness.png?raw=true "STEP 5: general-knowledge scores before and after training")
 
 <br><br>
 
@@ -688,6 +726,8 @@ Groq has retired the model; the printout says what to do.)
 Whatever the result: a hosted model costs per request, sends every ticket
 off-site, and can be retired. And if it wins, the task may not need fine-tuning
 at all. **Run this comparison before you invest in fine-tuning, not after.**
+
+![Lab 5 STEP 6 output](./images/ft-lab5-groq.png?raw=true "STEP 6: a large hosted model compared with your LoRA model (needs a Groq key)")
 
 <br><br>
 
