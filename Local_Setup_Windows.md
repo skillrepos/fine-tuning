@@ -23,8 +23,8 @@ Open **Settings → System → About** and look at **System type**:
 | **64-bit operating system, x64-based processor** (Windows 10 or 11) | **Yes.** |
 | **64-bit operating system, ARM-based processor** (for example a Snapdragon laptop or Surface Pro X) | **No — please use the Codespace.** PyTorch does not publish a Windows-on-ARM version for the Python the labs use. |
 
-You will also need about **10 GB of free disk space** (the three models are about
-4 GB) and ideally **16 GB of memory** (8 GB works, but Lab 4 will be tight).
+You will also need about **10 GB of free disk space** (the two models are about
+2 GB) and ideally **16 GB of memory** (8 GB works, but Lab 4 will be tight).
 Lab 4 also needs a processor from roughly 2015 or later (one with "AVX2"); the
 check in Step 9 tests this for you.
 
@@ -177,7 +177,7 @@ without a red `ERROR:` line.
 python scripts\prefetch_models.py
 ```
 
-This downloads the three models the labs use (about **4 GB**) plus two small test
+This downloads the two models the labs use (about **2 GB**) plus two small test
 datasets for Lab 5. It takes **5-15 minutes** depending on your connection.
 It is finished when you see:
 
@@ -213,7 +213,7 @@ Any `FAIL` line tells you what to fix. `WARN` lines are optional.
 
 <br>
 
-## 10. (Optional) Set up a Groq key for Lab 5's STEP 6
+## 10. (Optional) Set up a Groq key for Lab 5's STEP 4
 
 Lab 5 has one **optional** step that compares your model against a large hosted
 model on Groq. It needs a free Groq API key. Every other lab runs without one.
@@ -293,29 +293,15 @@ Windows:
 | In `labs.md` (Codespace) | In PowerShell |
 |---|---|
 | `source .venv/bin/activate` | `.\.venv\Scripts\Activate.ps1` |
-| `head -3 data/tickets_train.jsonl` | `Get-Content data\tickets_train.jsonl -TotalCount 3` |
-| `wc -l data/tickets_train.jsonl data/tickets_eval.jsonl` | `(Get-Content data\tickets_train.jsonl).Count; (Get-Content data\tickets_eval.jsonl).Count` |
 | `rm -rf out/` | `Remove-Item -Recurse -Force out` |
 | `nproc` | `$env:NUMBER_OF_PROCESSORS` |
-| Commands split over several lines, each ending in `\` | PowerShell uses a backtick `` ` `` at the end of a line instead of `\`. Or use the one-line versions below. |
-
-The two multi-line commands in Lab 5 (Steps 1 and 2), as single lines you can
-paste into PowerShell:
-
-```
-lm_eval run --model hf --model_args pretrained=HuggingFaceTB/SmolLM2-360M-Instruct,dtype=float32 --tasks arc_easy,arc_challenge --device cpu --limit 20 --batch_size 1 --output_path out/harness-base
-```
-
-```
-lm_eval run --model hf --model_args pretrained=HuggingFaceTB/SmolLM2-360M-Instruct,peft=out/smollm2-lora,dtype=float32 --tasks arc_easy,arc_challenge --device cpu --limit 20 --batch_size 1 --output_path out/harness-lora
-```
 
 A few more differences, whichever terminal you use:
 
 | In `labs.md` / the slides | On your PC |
 |---|---|
 | The terminal starts with `(.venv)` automatically | Activate it yourself in every new terminal (see above). |
-| Times like "training takes 2-4 minutes" | Those are measured on a 4-core Codespace. Your PC may be faster or slower, and Lab 4's 4-bit training on Windows has not been timed by us. |
+| Times like "about 3 minutes" | Those are measured on a 4-core Codespace. Your PC may be faster or slower, and Lab 4's 4-bit training on Windows has not been timed by us. |
 | Model files live in the repo's `.cache/` folder | They live in `C:\Users\<you>\.cache\huggingface`. |
 | `OMP_NUM_THREADS` is set to 2 | Leave it unset on your PC — the default uses all your cores. |
 

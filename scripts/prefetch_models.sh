@@ -18,7 +18,6 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 MODELS = [
     "distilgpt2",                            # Lab 1, Lab 2   (~350 MB)
     "HuggingFaceTB/SmolLM2-360M-Instruct",   # Lab 3, Lab 4   (~1.4 GB)
-    "TinyLlama/TinyLlama-1.1B-Chat-v1.0",    # Lab 4 step 8   (~2.2 GB)
 ]
 
 for m in MODELS:

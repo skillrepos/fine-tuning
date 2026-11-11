@@ -1,256 +1,147 @@
 """
-Lab 5 - Comparing everything you built.
+Lab 5 - Compare everything, find where the model fails, and check that
+training did not make it worse at everything else.
 
-Four models, one table. Plus a question people often forget to ask until it
-causes problems later: did training on our one narrow task make the model
-worse at everything else?
-
-Run the two lm_eval commands from labs.md BEFORE running this script -- this
-script reads their output.
-
-STEP 6 is optional and needs a free GROQ_API_KEY. It compares everything you
-built against a much larger hosted model (120 billion parameters), given the
-best prompt we can write. It is skipped automatically if you have no key.
+STEP 4 is optional and needs a free GROQ_API_KEY. It compares your model with
+a much larger hosted model, given the best prompt we can write. Without a key
+it is skipped.
 """
 
-import sys, os, json, glob
+import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+os.environ.setdefault("TQDM_DISABLE", "1")   # no progress bars from the quiz tool
 import common.quiet   # hide library warnings and progress bars
 
+import contextlib, io, logging
 import torch
 from collections import Counter, defaultdict
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
 
 from common.triage import (
-    load_tickets, generate_predictions, groq_predictions,
-    score, print_scores, save_result, extract_fields, OUT_DIR, FRONTIER_MODEL,
-    RANDOM_GUESS,
+    load_tickets, generate_predictions, groq_predictions, score, save_result,
+    load_results, print_card, extract_fields, OUT_DIR, FRONTIER_MODEL, RANDOM_GUESS,
 )
 
 LORA_DIR = os.path.join(OUT_DIR, "smollm2-lora")
 BASE_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"
 N_EVAL = 20
+QUIZ = "arc_easy"        # a general school-science quiz, nothing to do with tickets
+QUIZ_QUESTIONS = 20
 
 
 # ==========================================================================
-# STEP 1 - The comparison table: every run's scores side by side
+# STEP 1 - Every run side by side
 # ==========================================================================
 print("\n" + "=" * 78)
-print("STEP 1: Every run's scores, side by side")
+print("STEP 1: Every run side by side")
 print("=" * 78)
 
-with open(os.path.join(OUT_DIR, "results.json")) as f:
-    results = json.load(f)
+results = load_results()
+ROWS = [
+    ("random guessing", RANDOM_GUESS),
+    ("Lab 1 just the ticket, 82M", results.get("baseline_distilgpt2")),
+    ("Lab 1 best prompt, 360M", results.get("bestprompt_smollm2")),
+    ("Lab 2 retrain all, 82M", results.get("fullft_distilgpt2")),
+    ("Lab 3 LoRA, 360M", results.get("lora_smollm2")),
+]
 
-ORDER = ["baseline_distilgpt2", "bestprompt_smollm2", "fullft_distilgpt2",
-         "lora_smollm2", "qlora_smollm2"]
-LABEL = {
-    "baseline_distilgpt2": "Lab 1  bare prompt distilgpt2  82M",
-    "bestprompt_smollm2":  "Lab 1  best prompt SmolLM2  360M",
-    "fullft_distilgpt2":   "Lab 2  retrain all distilgpt2  82M",
-    "lora_smollm2":        "Lab 3  LoRA        SmolLM2  360M",
-    "qlora_smollm2":       "Lab 4  QLoRA test  SmolLM2  360M",
-}
-
-hdr = (f"{'run':38s} {'format':>8s} {'category':>9s} {'priority':>9s} "
-       f"{'queue':>7s} {'MB':>7s} {'steps':>6s} {'sec':>6s}")
-print("\n" + hdr)
-print("-" * len(hdr))
-for key in ORDER:
-    if key not in results:
-        print(f"{LABEL[key]:38s}  (not run)")
+print(f"\n  {'run':28s} {'category':>9s} {'priority':>9s} {'queue':>6s} "
+      f"{'format':>7s} {'MB':>5s} {'sec':>5s}")
+for name, r in ROWS:
+    if r is None:
+        print(f"  {name:28s}  (not run yet)")
         continue
-    r = results[key]
-    print(f"{LABEL[key]:38s} {r['schema_valid']:7.1%} {r['category_acc']:8.1%} "
-          f"{r['priority_acc']:8.1%} {r['queue_acc']:6.1%} "
-          f"{r.get('artifact_mb', '-'):>7} {r.get('steps', '-'):>6} "
-          f"{r.get('train_seconds', '-'):>6}")
-
-print(f"  (random guessing, on average: category {RANDOM_GUESS['category_acc']:.1%}, "
-      f"priority {RANDOM_GUESS['priority_acc']:.1%}, queue {RANDOM_GUESS['queue_acc']:.1%})")
-
-print("""
-  -> The row to beat is "best prompt". Read across every column: format,
-     category, MB, steps and sec each answer a different question.
-     Lab 4's row trained for only 4 steps, so its low scores show too little
-     training -- not what 4 bits costs in quality.
-""")
+    fmt = f"{r['schema_valid']:7.0%}" if "schema_valid" in r else f"{'-':>7s}"
+    print(f"  {name:28s} {r['category_acc']:9.0%} {r['priority_acc']:9.0%} "
+          f"{r['queue_acc']:6.0%} {fmt} {r.get('artifact_mb', '-'):>5} "
+          f"{r.get('train_seconds', '-'):>5}")
+print("\n  MB = size of what you would ship. sec = training time.")
 
 
 # ==========================================================================
-# STEP 2 - Reload the best model for a closer look
+# STEP 2 - Where does the Lab 3 model go wrong?
 # ==========================================================================
 print("\n" + "=" * 78)
-print("STEP 2: Reload the Lab 3 model to look at its mistakes")
+print("STEP 2: Where does the Lab 3 model go wrong?")
 print("=" * 78)
 
 if not os.path.isdir(LORA_DIR):
-    print(f"\n  No adapter found at {LORA_DIR}. STEPS 2-4 need the adapter Lab 3 saves:")
-    print("  run Lab 3, then rerun this script.")
+    print(f"\n  No adapter at {LORA_DIR}. Run Lab 3 first, then rerun this script.")
     raise SystemExit(0)
 
-# Load the tokenizer we SAVED next to the adapter, not a fresh one -- it
-# includes the padding-token change we made in Lab 3.
+# Load the tokenizer saved next to the adapter: it has Lab 3's filler token.
 tokenizer = AutoTokenizer.from_pretrained(LORA_DIR)
-
 base = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.float32)
 model = PeftModel.from_pretrained(base, LORA_DIR)
-print(f"\n  Loaded {BASE_MODEL} + adapter from {LORA_DIR}")
 
 eval_rows = list(load_tickets()["eval"])[:N_EVAL]
 preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24)
 
-
-# ==========================================================================
-# STEP 3 - Score each category separately: where is it failing?
-# ==========================================================================
-print("\n" + "=" * 78)
-print("STEP 3: Score each category separately")
-print("=" * 78)
-
-per = defaultdict(lambda: [0, 0])
-confusions = Counter()
+per = defaultdict(lambda: [0, 0])     # category -> [right, tickets]
+mixups = Counter()                    # (right category, model's answer) -> count
 for pred, row in zip(preds, eval_rows):
     got = extract_fields(pred)["category"] or "<none given>"
     per[row["category"]][1] += 1
     if got == row["category"]:
         per[row["category"]][0] += 1
     else:
-        confusions[(row["category"], got)] += 1
+        mixups[(row["category"], got)] += 1
 
-print(f"\n  {'right category':24s} {'correct':>9s} {'tickets':>8s}")
-print("  " + "-" * 44)
+print(f"\n  {'category':24s} right answers")
 for cat in sorted(per):
-    ok, n = per[cat]
-    print(f"  {cat:24s} {ok:9d} {n:8d}")
-
-if confusions:
-    print("\n  Most common mix-ups (right category -> model's answer):")
-    for (t, g), c in confusions.most_common(5):
-        print(f"    {t:24s} -> {g:24s} x{c}")
-
-print("\n  -> One overall score says IF there is a problem; this says WHERE. The usual")
-print("     fix is more training examples of the weak category.")
+    print(f"  {cat:24s} {per[cat][0]} of {per[cat][1]}")
+if mixups:
+    (right, got), n = mixups.most_common(1)[0]
+    print(f"\n  Most common mix-up: {right} answered as {got} ({n}x)")
 
 
 # ==========================================================================
-# STEP 4 - Look at actual failures
+# STEP 3 - Did training make the model worse at anything else?
 # ==========================================================================
 print("\n" + "=" * 78)
-print("STEP 4: Read the failures")
+print(f"STEP 3: A general quiz ({QUIZ_QUESTIONS} questions), before and after training")
 print("=" * 78)
 
-shown = 0
-for pred, row in zip(preds, eval_rows):
-    if pred != row["label"] and shown < 4:
-        more = "..." if len(row["ticket"]) > 100 else ""
-        print(f"\n  TICKET   : {row['ticket'][:100]}{more}")
-        print(f"  EXPECTED : {row['label']}")
-        print(f"  PREDICTED: {pred!r}")
-        shown += 1
-if shown == 0:
-    print("\n  No failures in this sample -- try raising N_EVAL.")
+# EleutherAI's lm-evaluation-harness: the standard tool for quizzing models.
+from lm_eval import simple_evaluate
+from lm_eval.models.huggingface import HFLM
+logging.getLogger("lm-eval").setLevel(logging.ERROR)
+logging.getLogger("lm_eval").setLevel(logging.ERROR)
 
-print("\n  -> Always read a few: they show whether the model misunderstands the task")
-print("     or the correct answer itself is unclear.")
+
+def quiz(m):
+    """Fraction of the quiz questions the model gets right."""
+    with contextlib.redirect_stderr(io.StringIO()):   # hide the tool's progress bars
+        lm = HFLM(pretrained=m, tokenizer=tokenizer, batch_size=1, device="cpu")
+        out = simple_evaluate(model=lm, tasks=[QUIZ], limit=QUIZ_QUESTIONS,
+                              verbosity="ERROR", log_samples=False)
+    return out["results"][QUIZ]["acc,none"]
+
+
+with model.disable_adapter():         # the original model, adapter switched off
+    before = quiz(model.get_base_model())
+after = quiz(model.get_base_model())  # adapter switched back on
+
+print(f"\n  questions right: {before:.0%} before training, {after:.0%} after")
+print("  -> One question is 5 points, so small changes are luck. A big drop would")
+print("     mean training hurt the model's other skills.")
 
 
 # ==========================================================================
-# STEP 5 - Did training make the model worse at general tasks?
+# STEP 4 (optional, needs GROQ_API_KEY) - A huge hosted model, prompt only
 # ==========================================================================
 print("\n" + "=" * 78)
-print("STEP 5: Did training make the model worse at anything else?")
+print("STEP 4 (optional): A huge hosted model, best prompt, no training")
 print("=" * 78)
 
-
-def read_harness(pattern):
-    files = sorted(glob.glob(os.path.join(OUT_DIR, pattern, "**", "results*.json"),
-                             recursive=True))
-    if not files:
-        return None
-    with open(files[-1]) as f:
-        return json.load(f)["results"]
-
-
-base_res = read_harness("harness-base")
-lora_res = read_harness("harness-lora")
-
-if base_res and lora_res:
-    tasks = sorted(set(base_res) & set(lora_res))
-    print(f"\n  {'quiz':16s} {'before':>10s} {'+adapter':>10s} {'change':>10s}")
-    print("  " + "-" * 50)
-    for t in tasks:
-        def pick(d):
-            for k in ("acc_norm,none", "acc,none"):
-                if k in d[t]:
-                    return d[t][k]
-            return None
-        b, l = pick(base_res), pick(lora_res)
-        if b is None or l is None:
-            continue
-        print(f"  {t:16s} {b:10.3f} {l:10.3f} {l - b:+10.3f}")
-    print("""
-  -> Two school-science quizzes, nothing to do with tickets. Expect changes
-     near zero: with 20 questions, one answer moves a score by 0.05, so a
-     small change either way is luck. A BIG drop means training hurt the
-     model's other skills.
-""")
-else:
-    print("\n  No quiz results found. Run the two lm_eval commands from labs.md first,")
-    print("  then rerun this script.")
-
-
-# ==========================================================================
-# STEP 6 (OPTIONAL) - How does a large hosted model do with just a prompt?
-# ==========================================================================
-print("\n" + "=" * 78)
-print("STEP 6 (optional, needs GROQ_API_KEY): A huge hosted model, prompt only")
-print("=" * 78)
-
-# The model name is set in common/triage.py. Groq retires hosted models from
-# time to time; if this step says the model is not found, change it there.
-FRONTIER = FRONTIER_MODEL               # about 330x the size of our SmolLM2
-
-groq_preds = groq_predictions(eval_rows, model=FRONTIER, show=2)
-
+groq_preds = groq_predictions(eval_rows, model=FRONTIER_MODEL)
 if groq_preds is None:
-    print("\n  Skipped -- no GROQ_API_KEY set. This step is optional. To run it, set a")
-    print("  free key with scripts/setup-key.sh (see README.md) and rerun.")
+    print("\n  Skipped -- no GROQ_API_KEY set (see labs.md to add one).")
 else:
     gs = score(groq_preds, eval_rows)
-    print_scores(f"PROMPT ONLY, NO TRAINING - {FRONTIER}", gs)
     save_result("zeroshot_groq_frontier", gs, {
-        "model": FRONTIER, "trained": False, "method": "zero-shot prompt",
+        "model": FRONTIER_MODEL, "trained": False, "method": "zero-shot prompt",
     })
-
-    # Side by side with the model we fine-tuned.
-    ours = results.get("lora_smollm2")
-    if ours:
-        print(f"\n  {'score':16s} {'LoRA 360M':>12s} {FRONTIER[:18]:>20s} {'difference':>10s}")
-        print("  " + "-" * 62)
-        for k, name in (("schema_valid", "right format"), ("category_acc", "category correct"),
-                        ("priority_acc", "priority correct"), ("queue_acc", "queue correct")):
-            print(f"  {name:16s} {ours[k]:11.1%} {gs[k]:19.1%} {gs[k] - ours[k]:+10.1%}")
-
-    print("""
-  -> A model about 330x bigger, with the best prompt we could write. If it wins,
-     a prompt may be enough: run this check BEFORE investing in fine-tuning.
-     (Even so: you pay per request, and every ticket leaves your network.)
-""")
-
-
-# ==========================================================================
-# STEP 7 - What these results help you decide
-# ==========================================================================
-print("\n" + "=" * 78)
-print("STEP 7: What you would tell your team")
-print("=" * 78)
-print("""
-  Five questions you can now answer with evidence:
-    Does fine-tuning help?         -> best-prompt row vs. trained rows
-    Retrain the whole model?       -> Lab 2 vs. Lab 3 (scores, MB)
-    Need a bigger model?           -> category scores by model size
-    Did we break anything?         -> STEP 5
-    Just use a hosted model?       -> STEP 6
-""")
+    print_card([("Lab 3 LoRA", results.get("lora_smollm2", {})), ("hosted", gs)],
+               note=f"hosted = {FRONTIER_MODEL}, about 330x bigger than Lab 3's model.")

@@ -1,13 +1,10 @@
 """
-Lab 3 - LoRA fine-tuning (with Hugging Face's PEFT library).
+Lab 3 - LoRA: train a small add-on instead of the whole model.
 
-Same task as Lab 2, with a model four times bigger. This time we do NOT
-retrain the whole model. LoRA keeps the original model frozen (unchanged) and
-trains a small add-on next to it, called an adapter. Only the adapter learns,
-and it is about 2% of the size of the model.
-
-This lab also grades the model only on its answer (the triage line), not on
-repeating the ticket text it was given. Lab 2 graded both.
+Same task as Lab 2, with a model four times bigger. LoRA leaves the model
+itself unchanged and trains a small add-on beside it, called an adapter --
+about 2% of the model's size. This lab also grades the model only on its
+answer, not on repeating the ticket it was given.
 """
 
 import sys, os, time
@@ -22,90 +19,44 @@ from transformers import (
 from peft import LoraConfig, get_peft_model
 
 from common.triage import (
-    load_tickets, build_prompt, generate_predictions,
-    score, print_scores, save_result, param_report, plain_progress, OUT_DIR,
+    load_tickets, build_prompt, generate_predictions, score, save_result,
+    load_results, print_card, param_report, plain_progress, OUT_DIR,
 )
 
 BASE_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"
 OUTPUT_DIR = os.path.join(OUT_DIR, "smollm2-lora")
-MAX_STEPS = 24           # Lab 4 trains for the same number of steps
+MAX_STEPS = 24
 N_EVAL = 20
 
 
 # ==========================================================================
-# STEP 1 - Load the base model
+# STEP 1 - Load the model and add the adapters
 # ==========================================================================
 print("\n" + "=" * 70)
-print(f"STEP 1: Load {BASE_MODEL}")
+print(f"STEP 1: Load {BASE_MODEL.split('/')[-1]} and add LoRA adapters")
 print("=" * 70)
 
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
-# Same fix as Lab 2: the padding token (filler that evens out lengths) must be
-# different from the end token, or the model never learns where to stop.
-# SmolLM2 already has a spare token we can use for padding.
+# As in Lab 2, the filler token must differ from the end-of-text token.
+# This model already has a spare token to use as filler.
 if tokenizer.pad_token_id == tokenizer.eos_token_id:
     tokenizer.pad_token = "<|endoftext|>"
-print(f"\n  padding token = {tokenizer.pad_token_id}    end-of-text token = {tokenizer.eos_token_id}")
 
 model = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.float32)
-param_report(model, "SmolLM2-360M base (before LoRA)")
 
-
-# ==========================================================================
-# STEP 2 - Find out what the layers are actually called
-# ==========================================================================
-print("\n" + "=" * 70)
-print("STEP 2: Which layers can LoRA attach adapters to?")
-print("=" * 70)
-
-names = sorted({
-    n.split(".")[-1]
-    for n, m in model.named_modules()
-    if isinstance(m, torch.nn.Linear)
-})
-print(f"\n  Layer names in this model: {names}")
-print("  -> Always use the names the model itself reports; a list copied from another")
-print("     kind of model can quietly miss layers.")
-
-
-# ==========================================================================
-# STEP 3 - Choose the LoRA settings
-# ==========================================================================
-print("\n" + "=" * 70)
-print("STEP 3: Choose the LoRA settings")
-print("=" * 70)
-
-# TODO 1: add the rest of the LoRA settings, including which layers get
-#         adapters (the names STEP 2 printed).
+# TODO 1: add the rest of the LoRA settings, including which layers get adapters.
 peft_config = LoraConfig(
     r=16,
     lora_alpha=32,
 )
-print(f"\n  r (adapter size) = {peft_config.r}   lora_alpha (strength) = {peft_config.lora_alpha}")
-print(f"  layers to attach adapters to: {peft_config.target_modules}")
 
-
-# ==========================================================================
-# STEP 4 - Add the adapters and see how much of the model will train
-# ==========================================================================
-print("\n" + "=" * 70)
-print("STEP 4: Add the LoRA adapters")
-print("=" * 70)
-
-# TODO 2: add the LoRA adapters to the model, then print how much of it
-#         will be trained.
+# TODO 2: add the adapters to the model, then report how much will be trained.
 peft_model = None
 
-print("  -> That share is how much of the model will be trained. Lab 2 trained 100%.")
-
 
 # ==========================================================================
-# STEP 5 - Prepare the data, and grade only the answer
+# Prepare the data, and grade only the answer
 # ==========================================================================
-print("\n" + "=" * 70)
-print("STEP 5: Prepare the training data (grade only the answer)")
-print("=" * 70)
-
 ds = load_tickets()
 
 
@@ -117,10 +68,9 @@ def encode(example):
     prompt_ids = tokenizer(prompt, add_special_tokens=False)["input_ids"]
     full_ids = tokenizer(full, add_special_tokens=False)["input_ids"]
 
-    # -100 means "do not grade this position". Everything before the answer is
-    # the ticket we gave the model; we don't want it graded on repeating that.
-    # TODO 3: build the labels (what the model is graded on): -100 for every
-    #         prompt position, and the answer's own token numbers.
+    # -100 means "do not grade this position": the ticket we gave the model.
+    # TODO 3: build the labels: -100 for every ticket position, then the
+    #         answer's own token numbers.
     labels = full_ids
 
     return {"input_ids": full_ids,
@@ -131,97 +81,79 @@ def encode(example):
 tokenized = ds.map(encode, remove_columns=ds["train"].column_names)
 
 row = tokenized["train"][0]
-n_masked = sum(1 for l in row["labels"] if l == -100)
-print(f"\n  first example: {len(row['input_ids'])} tokens, "
-      f"{n_masked} from the prompt (not graded), {len(row['labels']) - n_masked} graded")
-print(f"  grading marks for the first 12 tokens (-100 = not graded): {row['labels'][:12]}")
-print("  -> Lab 2 also graded the model on repeating the ticket. Here all the training")
-print("     goes into writing the triage line.")
+n_ticket = sum(1 for l in row["labels"] if l == -100)
+print(f"  First example: {n_ticket} tokens of ticket (not graded), "
+      f"{len(row['labels']) - n_ticket} of answer (graded)")
 
 
 # ==========================================================================
-# STEP 6 - Train
+# STEP 2 - Train the adapter
 # ==========================================================================
 print("\n" + "=" * 70)
-print(f"STEP 6: Train the adapter, {MAX_STEPS} steps (about 3 minutes)")
+print("STEP 2: Train the adapter (about 3 minutes)")
 print("=" * 70)
 
 args = TrainingArguments(
     output_dir=OUTPUT_DIR,
     max_steps=MAX_STEPS,        # a fixed number of steps keeps the lab on time
     per_device_train_batch_size=8,
-    learning_rate=1e-3,         # how big each adjustment is; LoRA can use a bigger one than Lab 2
-    warmup_steps=0.1,           # ease in over the first 10% of steps
-    lr_scheduler_type="cosine", # ...then lower the learning rate slowly toward zero
-    logging_steps=4,            # report the loss every 4 steps
-    save_strategy="no",         # don't save extra copies of the model while training
+    learning_rate=1e-3,         # bigger than Lab 2's: only the small adapter changes
+    warmup_steps=0.1,           # start with small adjustments for the first 10% of steps
+    lr_scheduler_type="cosine", # ...then make them smaller again toward the end
+    logging_steps=6,            # report the loss 4 times
+    save_strategy="no",         # don't save extra copies while training
     use_cpu=True,               # run on the processor, not a graphics card
-    optim="adamw_torch",        # the update rule: AdamW, a version of Adam (see slides)
+    optim="adamw_torch",
 )
 
-# Pads every example in a batch to the same length, and marks the padding
-# -100 so it is not graded either.
-collator = DataCollatorForSeq2Seq(tokenizer, padding=True, label_pad_token_id=-100)
-
-# TODO 4: build the Trainer from the model with adapters, the training data,
-#         the padding helper (collator) above, and the tokenizer (passed as
-#         processing_class=).
 trainer = Trainer(
     model=peft_model,
     args=args,
+    train_dataset=tokenized["train"],
+    # Pads each batch to the same length; the filler is not graded either.
+    data_collator=DataCollatorForSeq2Seq(tokenizer, padding=True, label_pad_token_id=-100),
+    processing_class=tokenizer,
 )
 
 plain_progress(trainer)   # one plain line per loss report, no progress bar
 t0 = time.time()
-result = trainer.train()
+trainer.train()
 elapsed = time.time() - t0
-print(f"\n  Trained in {elapsed:.0f}s   average loss {result.training_loss:.4f}  (lower is better)")
 
 
 # ==========================================================================
-# STEP 7 - Save just the adapter
+# Save just the adapter
 # ==========================================================================
-print("\n" + "=" * 70)
-print("STEP 7: Save the adapter and compare file sizes")
-print("=" * 70)
-
 peft_model.save_pretrained(OUTPUT_DIR)
 tokenizer.save_pretrained(OUTPUT_DIR)
-
 adapter_mb = sum(
     os.path.getsize(os.path.join(OUTPUT_DIR, f))
     for f in os.listdir(OUTPUT_DIR)
     if os.path.isfile(os.path.join(OUTPUT_DIR, f))
 ) / 1024 ** 2
-# Size of the model itself, without the adapters (4 bytes per number).
+# The model itself, without the adapters, at 4 bytes per number.
 full_mb = sum(p.numel() * 4 for n, p in peft_model.get_base_model().named_parameters()
               if "lora_" not in n) / 1024 ** 2
-print(f"\n  Files written: {sorted(os.listdir(OUTPUT_DIR))}")
-print(f"  Adapter directory        : {adapter_mb:8.1f} MB")
-print(f"  A full copy would be     : {full_mb:8.1f} MB")
-print(f"  Ratio                    : {full_mb / adapter_mb:8.0f}x smaller")
-print("  -> One shared model plus a small adapter per task or customer, instead of a")
-print("     full copy of the model each time.")
+print(f"\n  Trained in {elapsed:.0f} seconds. Saved adapter: {adapter_mb:.0f} MB "
+      f"(a full copy: {full_mb:,.0f} MB).")
 
 
 # ==========================================================================
-# STEP 8 - Score the trained model
+# Results
 # ==========================================================================
-print("\n" + "=" * 70)
-print("STEP 8: Score the LoRA model")
-print("=" * 70)
-
 eval_rows = list(ds["eval"])[:N_EVAL]
-preds = generate_predictions(peft_model, tokenizer, eval_rows, max_new_tokens=24, show=3)
-
+preds = generate_predictions(peft_model, tokenizer, eval_rows, max_new_tokens=24)
 s = score(preds, eval_rows)
-print_scores("LoRA - SmolLM2-360M", s)
 save_result("lora_smollm2", s, {
     "model": BASE_MODEL, "trained": True, "method": "lora",
     "rank": peft_config.r, "alpha": peft_config.lora_alpha, "steps": MAX_STEPS,
     "train_seconds": round(elapsed), "artifact_mb": round(adapter_mb, 1),
-    "final_loss": round(result.training_loss, 4),
 })
 
-print("\n  -> Compare with Lab 2: a model 4x bigger, about 2% of it trained, and a file")
-print("     of tens of MB instead of hundreds. (Optional experiments: end of Lab 3 in labs.md.)")
+print("\n" + "=" * 70)
+print(f"RESULTS ({N_EVAL} test tickets)")
+print("=" * 70)
+saved = load_results()
+print_card([("best prompt", saved.get("bestprompt_smollm2", {})),
+            ("Lab 2", saved.get("fullft_distilgpt2", {})), ("Lab 3", s)],
+           note="Lab 3 trained about 2% of a model 4x bigger than Lab 2's.")

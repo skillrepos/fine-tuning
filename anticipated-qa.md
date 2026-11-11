@@ -439,16 +439,17 @@ accepting a license before download.
 
 Measured on a real 4-core Codespace (AMD EPYC 9V74, 2 physical cores + SMT):
 
-| Lab | Total | of which is compute | Notes |
-|-----|-------|---------------------|-------|
-| 1 | 10-12 min | **25 s measured** | Most of it is the baseline generation |
-| 2 | 10-12 min | **163 s measured** (139 s training) | Tell them to start it and keep reading |
-| 3 | 10-12 min | ~5 min (7.3 s/step x 24, plus load) | +3 min if they do the optional DoRA step |
-| 4 | 10-12 min | ~6-7 min | 4 training steps @ ~43 s (4-bit is ~20x slower per example); Step 8 loads a 2nd model |
-| 5 | 10-12 min | ~4 min | Two harness runs, then the script |
+| Lab | Total | Run time (measured 11/09/26) | Words printed |
+|-----|-------|------------------------------|---------------|
+| 1 | 10 min max | **128 s** | 166 |
+| 2 | 10 min max | **170 s** (about 150 s training) | 111 |
+| 3 | 10 min max | **224 s** (about 155 s training) | 136 |
+| 4 | 10 min max | **158 s** (3 training steps) | 140 |
+| 5 | 10 min max | **130 s** (includes the before/after quiz) | about 170 (223 with the optional Groq step) |
 
-Labs 3 and 4 are the tight ones. If you are running behind, the DoRA step in
-Lab 3 and Step 8 of Lab 4 are both cuttable without breaking anything downstream.
+Each lab: about 2 minutes to read, 2 to merge, the run time above (students
+read the "while it runs" notes during it), and about 2 to read the results.
+Lab 3 is the tightest. The optional steps are outside the 10 minutes.
 
 **Codespace build takes about 4 minutes** (measured after the base-image fix;
 it was ~11 before). Still have attendees create it before the session starts —
@@ -458,8 +459,8 @@ a class all building at once is slower than one person building alone.
 
 - **Primary break: after Lab 2, at the 1:15 mark.** Ten minutes. This is the
   natural seam — full fine-tuning is done, LoRA has not started.
-- **Emergency buffer:** the Lab 3 DoRA step and the Lab 4 TinyLlama memory step
-  (Step 8) are both cuttable without breaking anything downstream.
+- **Emergency buffer:** every lab's optional step is outside the 10 minutes and
+  can be skipped without breaking anything downstream.
 - **If you are running long:** compress Section 4 by skipping the blockwise/NF4
   detail slide and going straight from the precision ladder to the QLoRA stack.
 - **If you are running short:** the per-class breakdown discussion in Lab 5 and the

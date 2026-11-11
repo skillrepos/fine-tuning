@@ -143,7 +143,6 @@ def generate_predictions(model, tokenizer, rows, max_new_tokens=24, show=0):
     """
     model.eval()
     preds = []
-    start = time.time()
     for i, row in enumerate(rows):
         prompt = build_prompt(row["ticket"])
         inputs = tokenizer(prompt, return_tensors="pt")
@@ -165,10 +164,9 @@ def generate_predictions(model, tokenizer, rows, max_new_tokens=24, show=0):
         pred = text.strip().split("\n")[0].strip()
         preds.append(pred)
         if i < show:
-            print(f"\n  TICKET   : {row['ticket'][:90]}...")
+            print(f"\n  TICKET   : {row['ticket'][:70]}...")
             print(f"  EXPECTED : {row['label']}")
-            print(f"  PREDICTED: {pred!r}")
-    print(f"\n  ({len(rows)} predictions in {time.time() - start:.1f}s)")
+            print(f"  GOT      : {pred[:70]!r}")
     return preds
 
 
@@ -207,7 +205,6 @@ def best_prompt_predictions(model, tokenizer, rows, examples, max_new_tokens=40,
     """
     model.eval()
     preds = []
-    start = time.time()
     for i, row in enumerate(rows):
         text = tokenizer.apply_chat_template(
             best_prompt_messages(row["ticket"], examples),
@@ -226,11 +223,9 @@ def best_prompt_predictions(model, tokenizer, rows, examples, max_new_tokens=40,
                                 skip_special_tokens=True).strip()
         preds.append(pred)
         if i < show:
-            print(f"\n  TICKET   : {row['ticket'][:90]}...")
+            print(f"\n  TICKET   : {row['ticket'][:70]}...")
             print(f"  EXPECTED : {row['label']}")
-            print(f"  PREDICTED: {pred!r}")
-    print(f"\n  ({len(rows)} predictions in {time.time() - start:.1f}s, "
-          f"prompt about {inputs['input_ids'].shape[1]} tokens each)")
+            print(f"  GOT      : {pred[:70]!r}")
     return preds
 
 
@@ -312,6 +307,32 @@ def score(preds, rows):
     }
 
 
+def print_card(columns, note=None):
+    """Print one small results table: a column per run, a row per score.
+
+    columns is a list of (name, scores) pairs. Pass RANDOM_GUESS as the scores
+    for a random-guessing column.
+    """
+    rows = [("right format", "schema_valid"), ("category", "category_acc"),
+            ("priority", "priority_acc"), ("queue", "queue_acc")]
+    print("\n  " + f"{'':14s}" + "".join(f"{name:>13s}" for name, _ in columns))
+    for label, key in rows:
+        cells = "".join(f"{s[key]:13.0%}" if key in s else f"{'-':>13s}"
+                        for _, s in columns)
+        print(f"  {label:14s}{cells}")
+    if note:
+        print(f"\n  {note}")
+
+
+def load_results():
+    """Every run saved so far in out/results.json (empty if none yet)."""
+    path = os.path.join(OUT_DIR, "results.json")
+    if not os.path.exists(path):
+        return {}
+    with open(path) as f:
+        return json.load(f)
+
+
 def print_scores(name, s):
     print(f"\n  === {name} ({s['n']} tickets) ===")
     print(f"    right format     : {s['schema_valid']:6.1%}")
@@ -339,7 +360,6 @@ def save_result(key, scores, extra=None):
     results[key] = {**scores, **(extra or {})}
     with open(path, "w") as f:
         json.dump(results, f, indent=2)
-    print(f"\n  Saved '{key}' to {path}")
     return results
 
 
@@ -357,8 +377,8 @@ def param_report(model, label="model"):
         return n
     total = sum(count(p) for p in model.parameters())
     trainable = sum(count(p) for p in model.parameters() if p.requires_grad)
-    print(f"\n  {label}: {trainable:,} of {total:,} numbers can be trained "
-          f"({100 * trainable / total:.4f}%)")
+    print(f"\n  {label}: {100 * trainable / total:.1f}% of its {total / 1e6:,.0f} "
+          f"million numbers will be trained")
     return trainable, total
 
 
@@ -373,8 +393,8 @@ def plain_progress(trainer):
 
     class PlainProgress(TrainerCallback):
         def on_train_begin(self, args, state, control, **kwargs):
-            print(f"\n  Training for {state.max_steps} steps. The loss is how wrong the "
-                  "model's guesses are\n  -- watch it go down.\n", flush=True)
+            print(f"\n  Training, {state.max_steps} steps. Loss = how wrong its guesses "
+                  "are (watch it fall):", flush=True)
 
         def on_log(self, args, state, control, logs=None, **kwargs):
             if logs and "loss" in logs:

@@ -3,7 +3,7 @@
     python scripts/prefetch_models.py
 
 Cross-platform version of scripts/prefetch_models.sh, for running the labs on
-your own machine (macOS, Windows, Linux). About 4 GB in total. Safe to re-run:
+your own machine (macOS, Windows, Linux). About 2 GB in total. Safe to re-run:
 anything already downloaded is skipped.
 
 Files go to the standard Hugging Face cache, which is exactly where the lab
@@ -21,7 +21,6 @@ import sys
 MODELS = [
     ("distilgpt2", "Labs 1-2, ~350 MB"),
     ("HuggingFaceTB/SmolLM2-360M-Instruct", "Labs 1, 3, 4, 5, ~1.4 GB"),
-    ("TinyLlama/TinyLlama-1.1B-Chat-v1.0", "Lab 4's STEP 8, ~2.2 GB"),
 ]
 
 DATASETS = [

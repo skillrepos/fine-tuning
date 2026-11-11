@@ -27,7 +27,7 @@ models small enough to train in minutes on a free 4-vCPU GitHub Codespace.
 ## Schedule
 
 - Duration: half-day (3 hours / 180 minutes)
-- Lab budget: 5 labs, 10-12 minutes each, 10-12 steps each (~60 min of lab time)
+- Lab budget: 5 labs, 10 minutes max each (reading, merging, running and reading the results), 4-6 steps each, about 150 printed words each (2026-11-09)
 - Sections: 5 lecture sections mapped 1:1 to the 5 labs, plus a wrap-up
 - Suggested break points: one 10-minute break after Lab 2 (at the 1:13 mark)
 
@@ -44,9 +44,9 @@ models small enough to train in minutes on a free 4-vCPU GitHub Codespace.
 | 1:23 | **Section 3** — LoRA: the low-rank idea, rank, alpha, target modules, DoRA | 20 |
 | 1:43 | **Lab 3** — LoRA fine-tune SmolLM2-360M with PEFT + HF `Trainer` | 12 |
 | 1:55 | **Section 4** — Quantization & QLoRA: NF4, double quant, paged optimizers, merge & export | 20 |
-| 2:15 | **Lab 4** — QLoRA on SmolLM2-360M + merge/export; TinyLlama 1.1B memory check | 12 |
+| 2:15 | **Lab 4** — QLoRA on SmolLM2-360M + merge/export | 12 |
 | 2:27 | **Section 5** — Systematic evaluation: task metrics, harnesses, regression & forgetting | 17 |
-| 2:44 | **Lab 5** — lm-evaluation-harness + before/after comparison | 12 |
+| 2:44 | **Lab 5** — compare every run + before/after general quiz (lm-evaluation-harness, inside the script) | 12 |
 | 2:56 | Wrap-up, where to go next, Q&A | 4 |
 
 Total: welcome 10 + lecture 96 + labs 60 + break 10 + wrap-up 4 = 180 min.

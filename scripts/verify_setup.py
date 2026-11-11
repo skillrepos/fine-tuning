@@ -80,8 +80,7 @@ if missing:
 # ---------------------------------------------------------------------------
 header("2. Workshop models downloaded")
 
-MODELS = ["distilgpt2", "HuggingFaceTB/SmolLM2-360M-Instruct",
-          "TinyLlama/TinyLlama-1.1B-Chat-v1.0"]
+MODELS = ["distilgpt2", "HuggingFaceTB/SmolLM2-360M-Instruct"]
 try:
     from huggingface_hub import snapshot_download
     for m in MODELS:

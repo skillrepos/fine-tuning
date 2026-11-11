@@ -11,16 +11,16 @@ using models small enough to train in minutes on a **CPU-only GitHub Codespace**
 
 ## What you will build
 
-Five labs, 10-12 minutes each, all on the same running task: turning free-text
+Five labs, about 10 minutes each, all on the same running task: turning free-text
 support tickets into one strict line in a made-up company's own format.
 
 | Lab | Topic | Model | Method |
 |-----|-------|-------|--------|
-| 1 | Prepare the data, chat templates, score with no training | distilgpt2 (82M) + SmolLM2-360M | none |
+| 1 | The task, and the best score without training | distilgpt2 (82M) + SmolLM2-360M | none |
 | 2 | Full fine-tuning with the Hugging Face `Trainer` | distilgpt2 (82M) | all parameters |
 | 3 | LoRA with PEFT + the Hugging Face `Trainer` | SmolLM2-360M-Instruct | LoRA (trains ~2.3% of the model) |
-| 4 | QLoRA (model stored in 4 bits), fold the adapter in and save | SmolLM2-360M + TinyLlama-1.1B | QLoRA |
-| 5 | Compare every run, check general skills with standard quizzes, optional comparison with a huge online model | all of the above | evaluation |
+| 4 | QLoRA (model stored in 4 bits), fold the adapter in and save | SmolLM2-360M | QLoRA |
+| 5 | Compare every run, check general skills with a standard quiz, optional comparison with a huge online model | all of the above | evaluation |
 
 ## Prerequisites
 
@@ -34,7 +34,7 @@ support tickets into one strict line in a made-up company's own format.
 | Account | Needed? | Why |
 |---|---|---|
 | **GitHub** (free) | **Yes** | To run the workshop's Codespace. Sign up at <https://github.com/signup> if you do not have one. |
-| **Groq** (free, no credit card) | Optional | Only for Lab 5's optional STEP 6. See [below](#optional-a-free-groq-api-key-for-lab-5s-step-6). |
+| **Groq** (free, no credit card) | Optional | Only for Lab 5's optional STEP 4. See [below](#optional-a-free-groq-api-key-for-lab-5s-step-4). |
 
 
 <br>
@@ -72,8 +72,8 @@ If VS Code asks whether you trust the authors of the files, click
 
 ![Trust the workspace](./images/ft-setup-trust.png?raw=true "Trust the workspace")
 
-The Codespace then installs the Python libraries and downloads the three models
-the labs use (about 4 GB), so no lab has to wait on a download later. This takes
+The Codespace then installs the Python libraries and downloads the two models
+the labs use (about 2 GB), so no lab has to wait on a download later. This takes
 about **5-8 minutes**. It is ready when the terminal shows:
 
 ```
@@ -118,7 +118,7 @@ More detail and fixes for common problems: [README-Codespace.md](README-Codespac
 
 ---
 
-## Optional: a free Groq API key for Lab 5's STEP 6
+## Optional: a free Groq API key for Lab 5's STEP 4
 
 Lab 5 ends with an **optional** step that compares your fine-tuned model against a
 very large model hosted by Groq. It needs a free Groq API key. **Every other lab
@@ -268,8 +268,8 @@ double every training time in `labs.md`.
 
 **`Killed` during Lab 4.**
 Out of memory. Close other running processes and re-run; Lab 4 briefly holds
-two models (STEP 6 reloads the 16-bit base to fold the adapter into, and STEP 8 loads
-TinyLlama). If it persists, drop `QLORA_BATCH` from 2 to 1 and skip STEP 8.
+two copies of the model (STEP 3 reloads it at 16 bits to fold the adapter into).
+If it persists, drop `QLORA_BATCH` from 2 to 1.
 
 **Lab 4 fails to load the model in 4-bit.**
 Run `python scripts/verify_setup.py` — its 4-bit check tells you whether this

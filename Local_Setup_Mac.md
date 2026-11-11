@@ -24,8 +24,8 @@ Click the **Apple menu  → About This Mac** and look at two lines:
 | **Chip: Apple M…** but macOS 13 or older | Update macOS first. The 4-bit library Lab 4 needs requires macOS 14+. |
 | **Processor: Intel …** | **No — please use the Codespace.** PyTorch and the 4-bit library no longer publish versions for Intel Macs. |
 
-You will also need about **10 GB of free disk space** (the three models are about
-4 GB) and ideally **16 GB of memory** (8 GB works, but Lab 4 will be tight).
+You will also need about **10 GB of free disk space** (the two models are about
+2 GB) and ideally **16 GB of memory** (8 GB works, but Lab 4 will be tight).
 
 <br>
 
@@ -155,7 +155,7 @@ without a red `ERROR:` line.
 python scripts/prefetch_models.py
 ```
 
-This downloads the three models the labs use (about **4 GB**) plus two small test
+This downloads the two models the labs use (about **2 GB**) plus two small test
 datasets for Lab 5. It takes **5-15 minutes** depending on your connection.
 It is finished when you see:
 
@@ -190,7 +190,7 @@ Any `FAIL` line tells you what to fix. `WARN` lines are optional.
 
 <br>
 
-## 9. (Optional) Set up a Groq key for Lab 5's STEP 6
+## 9. (Optional) Set up a Groq key for Lab 5's STEP 4
 
 Lab 5 has one **optional** step that compares your model against a large hosted
 model on Groq. It needs a free Groq API key. Every other lab runs without one.

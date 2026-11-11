@@ -23,8 +23,7 @@ at <https://github.com/codespaces> when you no longer need it.
 The first build takes about **5-8 minutes** because it:
 
 - installs CPU-only PyTorch and the training stack (~2-3 min)
-- downloads distilgpt2, SmolLM2-360M-Instruct, and TinyLlama-1.1B
-  (~4 GB total, ~3-5 min)
+- downloads distilgpt2 and SmolLM2-360M-Instruct (~2 GB total, ~2-3 min)
 
 You can watch progress by clicking **"Building codespace"** in the lower right,
 or **View → Output → Dev Containers**. It is ready when the terminal shows:
@@ -45,11 +44,11 @@ source .venv/bin/activate
 python scripts/verify_setup.py
 ```
 
-It checks the installed libraries, that all three models are downloaded, that
+It checks the installed libraries, that both models are downloaded, that
 4-bit training (Lab 4) works, and whether the optional Groq key is set. The last
 line should be `RESULT: ready for the workshop.`
 
-## Optional: Groq key for Lab 5's STEP 6
+## Optional: Groq key for Lab 5's STEP 4
 
 No step in this workshop *requires* a key. The one optional step that uses Groq
 is set up by a script — **you do not need to create any GitHub or Codespaces
@@ -119,7 +118,7 @@ already defaults to 2; the pin just makes every library agree.
 rm -rf out/
 df -h /workspaces
 ```
-The three models plus the Python environment use roughly 10 GB.
+The two models plus the Python environment use under 10 GB.
 
 **`code` and `code -d` do nothing.**
 That command only works inside the Codespace's own terminal, not in a local
