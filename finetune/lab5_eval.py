@@ -20,7 +20,8 @@ from peft import PeftModel
 
 from common.triage import (
     load_tickets, generate_predictions, groq_predictions, score, save_result,
-    load_results, print_card, extract_fields, OUT_DIR, FRONTIER_MODEL, RANDOM_GUESS,
+    load_results, print_card, extract_fields, write_answer_log, open_in_editor,
+    OUT_DIR, FRONTIER_MODEL, RANDOM_GUESS,
 )
 
 LORA_DIR = os.path.join(OUT_DIR, "smollm2-lora")
@@ -53,8 +54,9 @@ for name, r in ROWS:
         print(f"  {name:28s}  (not run yet)")
         continue
     fmt = f"{r['schema_valid']:7.0%}" if "schema_valid" in r else f"{'-':>7s}"
-    # TODO 1: print this run's row: category, priority, queue, format, MB, sec.
-    print(f"  {name:28s}")
+    print(f"  {name:28s} {r['category_acc']:9.0%} {r['priority_acc']:9.0%} "
+          f"{r['queue_acc']:6.0%} {fmt} {r.get('artifact_mb', '-'):>5} "
+          f"{r.get('train_seconds', '-'):>5}")
 print("\n  MB = size of what you would ship. sec = training time.")
 
 
@@ -72,17 +74,34 @@ if not os.path.isdir(LORA_DIR):
 # Load the tokenizer saved next to the adapter: it has Lab 3's filler token.
 tokenizer = AutoTokenizer.from_pretrained(LORA_DIR)
 base = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.float32)
-# TODO 2: attach the Lab 3 adapter (in LORA_DIR) to the base model.
+# TODO 1: attach the Lab 3 adapter (in LORA_DIR) to the base model.
 model = base
 
 eval_rows = list(load_tickets()["eval"])[:N_EVAL]
-preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24)
+
+# Fill in a file while the model answers: every ticket it gets wrong.
+MISTAKES_FILE = os.path.join(OUT_DIR, "lab5_mistakes.txt")
+
+
+def log(answers):
+    write_answer_log(MISTAKES_FILE, eval_rows, [("Lab 3", answers)],
+                     title="Every test ticket the Lab 3 model got at least partly wrong.",
+                     only_mistakes=True)
+
+
+log([])
+open_in_editor(MISTAKES_FILE)
+print("\n  Opened out/lab5_mistakes.txt: every ticket the model gets wrong.")
+print("  Read it while this step and the quiz run. Which part is wrong most often?")
+print("  (Click back in the terminal before you type your next command.)")
+preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24,
+                             on_answer=log)
 
 per = defaultdict(lambda: [0, 0])     # category -> [right, tickets]
 mixups = Counter()                    # (right category, model's answer) -> count
 for pred, row in zip(preds, eval_rows):
     got = extract_fields(pred)["category"] or "<none given>"
-    # TODO 3: count one ticket for its right category; count it as right when
+    # TODO 2: count one ticket for its right category; count it as right when
     #         the model's answer matches, otherwise count the mix-up.
 
 print(f"\n  {'category':24s} right answers")
@@ -116,9 +135,12 @@ def quiz(m):
     return out["results"][QUIZ]["acc,none"]
 
 
-with model.disable_adapter():         # the original model, adapter switched off
-    before = quiz(model.get_base_model())
-after = quiz(model.get_base_model())  # adapter switched back on
+# Quiz the same model twice: first with the Lab 3 adapter switched off (the
+# original model), then with it on again (the trained model).
+# TODO 3: switch the adapter off for this one quiz, so it scores the original
+#         model: put the line below inside  with model.disable_adapter():
+before = quiz(model.get_base_model())
+after = quiz(model.get_base_model())
 
 print(f"\n  questions right: {before:.0%} before training, {after:.0%} after")
 print("  -> One question is 5 points, so small changes are luck. A big drop would")

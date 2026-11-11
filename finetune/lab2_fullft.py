@@ -48,6 +48,7 @@ param_report(model, BASE_MODEL)
 # Turn each ticket and its answer into one training example
 # ==========================================================================
 ds = load_tickets()
+eval_rows = list(ds["eval"])[:N_EVAL]
 
 
 def tokenize(example):
@@ -82,7 +83,9 @@ trainer = Trainer(
     args=args,
 )
 
-plain_progress(trainer)   # one plain line per loss report, no progress bar
+# One plain line per loss report, plus the model's answer to one test ticket
+# at that moment, so you can watch it learn.
+plain_progress(trainer, watch=(tokenizer, eval_rows[0]))
 t0 = time.time()
 trainer.train()
 elapsed = time.time() - t0
@@ -105,13 +108,12 @@ print(f"\n  Trained in {elapsed:.0f} seconds. Saved model: {size_mb:.0f} MB "
 # ==========================================================================
 # Results
 # ==========================================================================
-eval_rows = list(ds["eval"])[:N_EVAL]
 preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24)
 s = score(preds, eval_rows)
 save_result("fullft_distilgpt2", s, {
     "model": BASE_MODEL, "trained": True, "method": "full",
     "train_seconds": round(elapsed), "artifact_mb": round(size_mb),
-    "steps": trainer.state.global_step,
+    "steps": trainer.state.global_step, "answers": preds,
 })
 
 print("\n" + "=" * 70)

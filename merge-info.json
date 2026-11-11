@@ -2,21 +2,32 @@
   "files": {
     "extra/lab1_prep_complete.txt": [
       {
-        "anchor": "preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24, show=1)",
-        "lines": 1,
-        "title": "Answers from the untrained model",
+        "anchor": "inputs = tok(prompt, return_tensors=\"pt\")",
+        "endAnchor": "return tok.decode(new_part, skip_special_tokens=True).strip()",
+        "title": "How a model is asked",
         "note": [
-          "**Asks the untrained model to answer the 20 test tickets.**",
-          "- `show=1` prints one of them so you can see what it wrote"
+          "**Turns the prompt into token numbers, lets the model write, and turns the new part back into text.**",
+          "- `do_sample=False`: always the most likely next word, so the answer is the same every run",
+          "- Stops at the length limit or at the model's end-of-text token"
         ]
       },
       {
-        "anchor": "s = score(preds, eval_rows)",
-        "lines": 1,
+        "anchor": "for ex in examples:",
+        "endAnchor": "messages.append({\"role\": \"user\", \"content\": ticket})",
+        "title": "Build the best prompt",
+        "note": [
+          "**Adds the worked examples as a conversation: each ticket, then its correct answer.**",
+          "- The model sees the pattern 8 times before the real ticket",
+          "- Open `out/lab1_best_prompt.txt` while the lab runs to see the whole thing"
+        ]
+      },
+      {
+        "anchor": "got = extract_fields(answer)",
+        "endAnchor": "right[field] += got[field] == row[field]",
         "title": "Score the answers",
         "note": [
-          "**Grades the answers on four checks: format, category, priority, queue.**",
-          "- Format must be exact; the other three count the right answer in any form"
+          "**Finds the category, priority and queue each answer names, and counts the ones that match.**",
+          "- They count even when the format is wrong; format is scored on its own line above"
         ]
       }
     ],
@@ -112,15 +123,6 @@
     ],
     "extra/lab5_eval_complete.txt": [
       {
-        "anchor": "print(f\"  {name:28s} {r['category_acc']:9.0%}",
-        "endAnchor": "f\"{r.get('train_seconds', '-'):>5}\")",
-        "title": "One row per run",
-        "note": [
-          "**Prints one run's scores, its file size and its training time.**",
-          "- `:9.0%` shows a fraction as a whole percentage"
-        ]
-      },
-      {
         "anchor": "model = PeftModel.from_pretrained(base, LORA_DIR)",
         "lines": 1,
         "title": "Attach the Lab 3 adapter",
@@ -137,20 +139,52 @@
           "**Counts right answers for each category, and records each mix-up.**",
           "- The most common mix-up prints below the table"
         ]
+      },
+      {
+        "anchor": "with model.disable_adapter():",
+        "endAnchor": "    before = quiz(model.get_base_model())",
+        "title": "Before: adapter off",
+        "note": [
+          "**Switches the Lab 3 adapter off for one quiz, so it scores the original model.**",
+          "- The adapter is a separate add-on, so it can be turned off and on",
+          "- The next line quizzes again with it on, for the after score"
+        ]
       }
     ]
   },
   "skeletons": {
     "finetune/lab1_prep.py": [
       {
-        "anchor": "# TODO 1: get the model's answer to each test ticket. Show the first one.",
-        "done": "preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24, show=1)",
-        "title": "Answers from the untrained model",
+        "anchor": "# TODO 1: turn the prompt into token numbers",
+        "done": "inputs = tok(prompt, return_tensors=\"pt\")",
+        "title": "How a model is asked",
         "note": [
-          "**Asks the untrained model to answer the 20 test tickets.**",
-          "- `show=1` prints one of them so you can see what it wrote"
+          "**Turns the prompt into token numbers, lets the model write, and turns the new part back into text.**",
+          "- `do_sample=False`: always the most likely next word, so the answer is the same every run",
+          "- Stops at the length limit or at the model's end-of-text token"
         ],
-        "lines": 4
+        "lines": 3
+      },
+      {
+        "anchor": "# TODO 2: add each worked example",
+        "done": "for ex in examples:",
+        "title": "Build the best prompt",
+        "note": [
+          "**Adds the worked examples as a conversation: each ticket, then its correct answer.**",
+          "- The model sees the pattern 8 times before the real ticket",
+          "- Open `out/lab1_best_prompt.txt` while the lab runs to see the whole thing"
+        ],
+        "lines": 2
+      },
+      {
+        "anchor": "# TODO 3: find the category, priority and queue",
+        "done": "got = extract_fields(answer)",
+        "title": "Score the answers",
+        "note": [
+          "**Finds the category, priority and queue each answer names, and counts the ones that match.**",
+          "- They count even when the format is wrong; format is scored on its own line above"
+        ],
+        "lines": 2
       }
     ],
     "finetune/lab2_fullft.py": [
@@ -251,17 +285,7 @@
     ],
     "finetune/lab5_eval.py": [
       {
-        "anchor": "# TODO 1: print this run's row: category, priority, queue, format, MB, sec.",
-        "done": "print(f\"  {name:28s} {r['category_acc']:9.0%} {r['priority_acc']:9.0%} \"",
-        "title": "One row per run",
-        "note": [
-          "**Prints one run's scores, its file size and its training time.**",
-          "- `:9.0%` shows a fraction as a whole percentage"
-        ],
-        "lines": 2
-      },
-      {
-        "anchor": "# TODO 2: attach the Lab 3 adapter (in LORA_DIR) to the base model.",
+        "anchor": "# TODO 1: attach the Lab 3 adapter (in LORA_DIR) to the base model.",
         "done": "model = PeftModel.from_pretrained(base, LORA_DIR)",
         "title": "Attach the Lab 3 adapter",
         "note": [
@@ -271,7 +295,7 @@
         "lines": 2
       },
       {
-        "anchor": "# TODO 3: count one ticket for its right category; count it as right when",
+        "anchor": "# TODO 2: count one ticket for its right category; count it as right when",
         "done": "per[row[\"category\"]][1] += 1",
         "title": "Count right answers per category",
         "note": [
@@ -279,6 +303,17 @@
           "- The most common mix-up prints below the table"
         ],
         "lines": 2
+      },
+      {
+        "anchor": "# TODO 3: switch the adapter off for this one quiz",
+        "done": "    before = quiz(model.get_base_model())",
+        "title": "Before: adapter off",
+        "note": [
+          "**Switches the Lab 3 adapter off for one quiz, so it scores the original model.**",
+          "- The adapter is a separate add-on, so it can be turned off and on",
+          "- The next line quizzes again with it on, for the after score"
+        ],
+        "lines": 3
       }
     ]
   }

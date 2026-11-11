@@ -1,12 +1,16 @@
 {
   "lab1_prep": [
     [
-      "preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24, show=1)\n",
-      "# TODO 1: get the model's answer to each test ticket. Show the first one.\npreds = None\n"
+      "    inputs = tok(prompt, return_tensors=\"pt\")        # text -> token numbers\n    out = model.generate(\n        **inputs,\n        max_new_tokens=max_new_tokens,               # the longest answer allowed\n        do_sample=False,                             # always pick the most likely next word\n        eos_token_id=tok.eos_token_id,               # stop at the model's end-of-text token\n        pad_token_id=tok.eos_token_id,               # required setting; unused for one ticket\n    )\n    new_part = out[0][inputs[\"input_ids\"].shape[1]:]  # skip the prompt, keep what it wrote\n    return tok.decode(new_part, skip_special_tokens=True).strip()   # token numbers -> text\n",
+      "    # TODO 1: turn the prompt into token numbers, let the model write up to\n    #         max_new_tokens more, and turn just the new part back into text.\n    return \"\"\n"
     ],
     [
-      "s = score(preds, eval_rows)\n",
-      "# TODO 2: score the answers against the correct ones.\ns = None\n"
+      "    for ex in examples:                                            # each worked example:\n        messages.append({\"role\": \"user\", \"content\": ex[\"ticket\"]})       # a ticket...\n        messages.append({\"role\": \"assistant\", \"content\": ex[\"label\"]})   # ...and its answer\n    messages.append({\"role\": \"user\", \"content\": ticket})           # then the new ticket\n",
+      "    # TODO 2: add each worked example as a \"user\" ticket followed by its\n    #         \"assistant\" answer, then the new ticket as \"user\".\n"
+    ],
+    [
+      "        got = extract_fields(answer)                # the category, priority and queue it names\n        for field in (\"category\", \"priority\", \"queue\"):\n            right[field] += got[field] == row[field]    # right if it matches the correct answer\n",
+      "        # TODO 3: find the category, priority and queue the answer names, and\n        #         count each one that matches the correct answer in row.\n"
     ]
   ],
   "lab2_fullft": [
@@ -65,16 +69,16 @@
   ],
   "lab5_eval": [
     [
-      "    print(f\"  {name:28s} {r['category_acc']:9.0%} {r['priority_acc']:9.0%} \"\n          f\"{r['queue_acc']:6.0%} {fmt} {r.get('artifact_mb', '-'):>5} \"\n          f\"{r.get('train_seconds', '-'):>5}\")\n",
-      "    # TODO 1: print this run's row: category, priority, queue, format, MB, sec.\n    print(f\"  {name:28s}\")\n"
-    ],
-    [
       "model = PeftModel.from_pretrained(base, LORA_DIR)\n",
-      "# TODO 2: attach the Lab 3 adapter (in LORA_DIR) to the base model.\nmodel = base\n"
+      "# TODO 1: attach the Lab 3 adapter (in LORA_DIR) to the base model.\nmodel = base\n"
     ],
     [
       "    per[row[\"category\"]][1] += 1\n    if got == row[\"category\"]:\n        per[row[\"category\"]][0] += 1\n    else:\n        mixups[(row[\"category\"], got)] += 1\n",
-      "    # TODO 3: count one ticket for its right category; count it as right when\n    #         the model's answer matches, otherwise count the mix-up.\n"
+      "    # TODO 2: count one ticket for its right category; count it as right when\n    #         the model's answer matches, otherwise count the mix-up.\n"
+    ],
+    [
+      "with model.disable_adapter():\n    before = quiz(model.get_base_model())\n",
+      "# TODO 3: switch the adapter off for this one quiz, so it scores the original\n#         model: put the line below inside  with model.disable_adapter():\nbefore = quiz(model.get_base_model())\n"
     ]
   ]
 }

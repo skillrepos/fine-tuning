@@ -23,7 +23,7 @@ from peft import LoraConfig, PeftModel, get_peft_model, prepare_model_for_kbit_t
 
 from common.triage import (
     load_tickets, build_prompt, save_result, load_results, model_size_mb,
-    plain_progress, OUT_DIR,
+    plain_progress, open_in_editor, OUT_DIR,
 )
 
 BASE_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"   # same model as Lab 3
@@ -72,6 +72,50 @@ print(f"\n  in memory at 32 bits (Lab 3): {fp32_mb:7,.0f} MB")
 print(f"  in memory at 4 bits         : {nf4_mb:7,.0f} MB   ({fp32_mb / nf4_mb:.1f}x smaller)")
 print(f"  -> A model 3x bigger (1.1 billion numbers) would need only about "
       f"{big_mb:,.0f} MB at 4 bits.")
+
+
+# --------------------------------------------------------------------------
+# What 4 bits does to the numbers: write a file to read while it trains
+# --------------------------------------------------------------------------
+def write_numbers_file(path, model, n=12):
+    """Put a few of the model's original numbers next to the same numbers
+    after a round trip through 4 bits."""
+    import bitsandbytes.functional as bnbf
+    from huggingface_hub import hf_hub_download
+    from safetensors import safe_open
+
+    name = "model.layers.0.self_attn.q_proj.weight"
+    layer = model.model.layers[0].self_attn.q_proj.weight
+    after = bnbf.dequantize_4bit(layer.data, layer.quant_state).float()
+    with safe_open(hf_hub_download(BASE_MODEL, "model.safetensors"), "pt") as f:
+        original = f.get_tensor(name).float()
+
+    lines = ["A few of the model's numbers (first layer), before and after 4 bits.",
+             "", "     original   after 4 bits   difference"]
+    for a, b in zip(original[0, :n].tolist(), after[0, :n].tolist()):
+        lines.append(f"  {a:11.5f}   {b:11.5f}   {b - a:+11.5f}")
+    group = after[0, :64]
+    lines += ["",
+              "4 bits can store only 16 different values. The numbers are stored in",
+              f"groups of 64, and the first group above uses {len(set(group.tolist()))} "
+              "different values.",
+              "So every number comes back rounded to one of those values, and",
+              "small numbers often come back as exactly 0.",
+              "That rounding is why STEP 3 folds the adapter into a full-size copy",
+              "of the model, not into the 4-bit one."]
+    with open(path, "w", encoding="utf-8") as out:
+        out.write("\n".join(lines) + "\n")
+
+
+NUMBERS_FILE = os.path.join(OUT_DIR, "lab4_numbers.txt")
+try:
+    write_numbers_file(NUMBERS_FILE, model)
+    open_in_editor(NUMBERS_FILE)
+    print("\n  Opened out/lab4_numbers.txt: the model's numbers before and after "
+          "4 bits.\n  Read it while the next step trains. (Click back in the "
+          "terminal before you type.)")
+except Exception as e:   # the lab still works without this file
+    print(f"\n  (Could not write out/lab4_numbers.txt: {e})")
 
 
 # ==========================================================================

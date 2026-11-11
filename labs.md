@@ -1,6 +1,6 @@
 # Fine-Tuning Small AI Models: LoRA, QLoRA & Evaluation
 
-## Revision 1.14 - 11/09/26
+## Revision 1.15 - 11/11/26
 
 **Workshop labs**
 
@@ -41,7 +41,8 @@ category: access-management | priority: P2 | queue: identity-team
 <br><br>
 
 1. In a terminal at `/workspaces/fine-tuning`, open your starter file next to
-the finished one, and merge every highlighted block:
+the finished one, and merge the three highlighted blocks: how a model is
+asked a question, how the best prompt is built, and how answers are scored.
 
 ```
 code -d extra/lab1_prep_complete.txt finetune/lab1_prep.py
@@ -55,9 +56,19 @@ code -d extra/lab1_prep_complete.txt finetune/lab1_prep.py
 python finetune/lab1_prep.py
 ```
 
-While it runs: **STEP 2** gives distilgpt2 just the ticket. **STEP 3** gives
-SmolLM2 (the model Labs 3 and 4 train) the best prompt we could write: every
-label, the rules, and one example per category. Neither is trained.
+It tries two untrained models: distilgpt2 with just the ticket, then SmolLM2
+(the model Labs 3 and 4 train) with the best prompt we could write. It also
+opens two files in editor tabs. **Read them while it runs.** (Click back in
+the terminal before you type your next command.)
+
+- **out/lab1_best_prompt.txt**: the whole best prompt. Find the rules, the list
+of labels, and the 8 worked examples written as a conversation. Notice how
+long it is: it is sent with every ticket.
+- **out/lab1_answers.txt**: fills in as each model answers. What does
+distilgpt2 write instead of a label? Which part does the best prompt get
+wrong most often?
+
+![Lab 1 answers file](./images/ft-lab1-answers.png?raw=true "The answers file filling in while the lab runs")
 
 <br><br>
 
@@ -112,6 +123,9 @@ python finetune/lab2_fullft.py
 
 While it runs: **STEP 1** says **100%** of the model will be trained. Then
 watch the **loss**, how wrong the model's guesses are, fall as it trains.
+Under each loss line is the model's answer to one test ticket at that moment.
+Before training it just writes more ticket-like text. Watch it learn the
+format, then the labels. Which part keeps changing?
 
 <br><br>
 
@@ -168,13 +182,20 @@ python finetune/lab3_lora.py
 
 While it runs: **STEP 1** says about **2%** of the model will be trained
 (Lab 2: 100%). The next line shows the model is now graded only on its answer,
-not on repeating the ticket back.
+not on repeating the ticket back. During training, watch its answer to test
+ticket 1 change, as in Lab 2.
 
 <br><br>
 
 3. Read the line after training: the adapter is a few tens of MB; a full copy
 would be about 1,400 MB. One shared model, plus a small adapter per customer
 or task.
+
+Then it opens **out/lab3_answers.txt** and fills it in as the trained model
+answers: each test ticket, with the best prompt's, Lab 2's and Lab 3's answers.
+Which tickets did Lab 3 fix? Which part does every model still get wrong?
+
+![Lab 3 answers file](./images/ft-lab3-answers.png?raw=true "Each ticket with the best prompt's, Lab 2's and Lab 3's answers")
 
 <br><br>
 
@@ -229,6 +250,12 @@ python finetune/lab4_qlora.py
 3. Read **STEP 1**: the same model in memory at 32 bits and at 4 bits, and how
 much a model 3 times bigger would need at 4 bits. Less than Lab 3's model at
 32 bits.
+
+Then it opens **out/lab4_numbers.txt**. Read it while STEP 2 trains: a few of
+the model's numbers before and after storing them in 4 bits. Each comes back
+rounded, and small ones often become exactly 0.
+
+![Lab 4 numbers file](./images/ft-lab4-numbers.png?raw=true "A few of the model's numbers before and after 4 bits")
 
 <br><br>
 
@@ -285,14 +312,22 @@ python finetune/lab5_eval.py
 
 <br><br>
 
-4. Read **STEP 2**: right answers for each category, and the most common
+4. While **STEP 2** has the Lab 3 model answer the test tickets, it opens
+**out/lab5_mistakes.txt**: every ticket the model gets at least partly wrong,
+next to the correct answer. Read it while this step and the quiz run. Which
+part is wrong most often?
+
+![Lab 5 mistakes file](./images/ft-lab5-mistakes.png?raw=true "Every ticket the Lab 3 model got at least partly wrong")
+
+Then read **STEP 2**: right answers for each category, and the most common
 mix-up. An overall score says *if* there is a problem; this says *where*. The
 usual fix: more training examples of the weak category.
 
 <br><br>
 
 5. Read **STEP 3**: a 20-question general-science quiz, before and after
-training. Small changes are luck. A **big drop** would mean training damaged
+training. The block you merged quizzes the same model twice: first with the
+adapter switched off (the original model), then with it on. Small changes are luck. A **big drop** would mean training damaged
 the model's other skills.
 
 <br><br>

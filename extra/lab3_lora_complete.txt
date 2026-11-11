@@ -20,7 +20,8 @@ from peft import LoraConfig, get_peft_model
 
 from common.triage import (
     load_tickets, build_prompt, generate_predictions, score, save_result,
-    load_results, print_card, param_report, plain_progress, OUT_DIR,
+    load_results, print_card, param_report, plain_progress, write_answer_log,
+    open_in_editor, OUT_DIR,
 )
 
 BASE_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"
@@ -63,6 +64,7 @@ param_report(peft_model, "SmolLM2-360M + LoRA")
 # Prepare the data, and grade only the answer
 # ==========================================================================
 ds = load_tickets()
+eval_rows = list(ds["eval"])[:N_EVAL]
 
 
 def encode(example):
@@ -118,7 +120,9 @@ trainer = Trainer(
     processing_class=tokenizer,
 )
 
-plain_progress(trainer)   # one plain line per loss report, no progress bar
+# One plain line per loss report, plus the model's answer to one test ticket
+# at that moment, so you can watch it learn.
+plain_progress(trainer, watch=(tokenizer, eval_rows[0]))
 t0 = time.time()
 trainer.train()
 elapsed = time.time() - t0
@@ -144,19 +148,36 @@ print(f"\n  Trained in {elapsed:.0f} seconds. Saved adapter: {adapter_mb:.0f} MB
 # ==========================================================================
 # Results
 # ==========================================================================
-eval_rows = list(ds["eval"])[:N_EVAL]
-preds = generate_predictions(peft_model, tokenizer, eval_rows, max_new_tokens=24)
+# Fill in a file while the trained model answers: each test ticket, with the
+# best prompt's answer (Lab 1), Lab 2's and this lab's side by side.
+saved = load_results()
+ANSWERS_FILE = os.path.join(OUT_DIR, "lab3_answers.txt")
+earlier = [("best prompt", saved.get("bestprompt_smollm2", {}).get("answers", [])),
+           ("Lab 2", saved.get("fullft_distilgpt2", {}).get("answers", []))]
+
+
+def log(answers):
+    write_answer_log(ANSWERS_FILE, eval_rows, earlier + [("Lab 3", answers)])
+
+
+log([])
+open_in_editor(ANSWERS_FILE)
+print("\n  Answering the test tickets. Opened out/lab3_answers.txt: which tickets")
+print("  did Lab 3 get right that the best prompt or Lab 2 got wrong?")
+print("  (Click back in the terminal before you type your next command.)")
+preds = generate_predictions(peft_model, tokenizer, eval_rows, max_new_tokens=24,
+                             on_answer=log)
 s = score(preds, eval_rows)
 save_result("lora_smollm2", s, {
     "model": BASE_MODEL, "trained": True, "method": "lora",
     "rank": peft_config.r, "alpha": peft_config.lora_alpha, "steps": MAX_STEPS,
     "train_seconds": round(elapsed), "artifact_mb": round(adapter_mb, 1),
+    "answers": preds,
 })
 
 print("\n" + "=" * 70)
 print(f"RESULTS ({N_EVAL} test tickets)")
 print("=" * 70)
-saved = load_results()
 print_card([("best prompt", saved.get("bestprompt_smollm2", {})),
             ("Lab 2", saved.get("fullft_distilgpt2", {})), ("Lab 3", s)],
            note="Lab 3 trained about 2% of a model 4x bigger than Lab 2's.")

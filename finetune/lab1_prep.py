@@ -13,30 +13,96 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from common.triage import (
-    load_tickets, generate_predictions, score, save_result, print_card,
-    pick_examples, best_prompt_predictions, best_prompt_messages,
-    RANDOM_GUESS, CATEGORIES,
+    load_tickets, build_prompt, pick_examples, extract_fields, right_format,
+    save_result, print_card, write_answer_log, open_in_editor,
+    RANDOM_GUESS, CATEGORIES, ZERO_SHOT_SYSTEM, OUT_DIR,
 )
 
 BASE_MODEL = "distilgpt2"                            # the model Lab 2 trains
 CHAT_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"   # the model Labs 3 and 4 train
 N_EVAL = 20          # 20 test tickets keeps every lab quick
 
+PROMPT_FILE = os.path.join(OUT_DIR, "lab1_best_prompt.txt")
+ANSWERS_FILE = os.path.join(OUT_DIR, "lab1_answers.txt")
+
 
 # ==========================================================================
-# STEP 1 - The data
+# How we ask a model a question
+# ==========================================================================
+def ask(model, tok, prompt, max_new_tokens):
+    """Give a model some text, and return the text it writes next."""
+    # TODO 1: turn the prompt into token numbers, let the model write up to
+    #         max_new_tokens more, and turn just the new part back into text.
+    return ""
+
+
+# ==========================================================================
+# How we build the best prompt
+# ==========================================================================
+def best_prompt(ticket, examples, tok):
+    """The best prompt we can write: the rules, worked examples, then the ticket."""
+    # A chat model reads a conversation. "system" holds the instructions,
+    # "user" is what a person wrote, "assistant" is the model's own reply.
+    messages = [{"role": "system", "content": ZERO_SHOT_SYSTEM}]  # rules and every label
+    # TODO 2: add each worked example as a "user" ticket followed by its
+    #         "assistant" answer, then the new ticket as "user".
+    # Join the conversation into the one long text the model actually reads.
+    return tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+
+
+# ==========================================================================
+# How we score the answers
+# ==========================================================================
+def score_answers(answers, rows):
+    """The share of answers in the right format, and with each field right."""
+    right = {"format": 0, "category": 0, "priority": 0, "queue": 0}
+    for answer, row in zip(answers, rows):
+        right["format"] += right_format(answer)     # exactly "category: .. | priority: .. | queue: .."?
+        # TODO 3: find the category, priority and queue the answer names, and
+        #         count each one that matches the correct answer in row.
+    n = len(rows)
+    return {"n": n, "schema_valid": right["format"] / n,
+            "category_acc": right["category"] / n,
+            "priority_acc": right["priority"] / n, "queue_acc": right["queue"] / n}
+
+
+# ==========================================================================
+# STEP 1 - The data, and two files to read while the models work
 # ==========================================================================
 print("\n" + "=" * 70)
-print("STEP 1: The data")
+print("STEP 1: The data, and two files to read while the models work")
 print("=" * 70)
 
 ds = load_tickets()
-print(f"\n  {len(ds['train'])} tickets to train on, {len(ds['eval'])} test tickets "
-      "(never trained on). One of them:")
-print(f"    ticket: {ds['train'][0]['ticket']}")
-print(f"    answer: {ds['train'][0]['label']}")
-
 eval_rows = list(ds["eval"])[:N_EVAL]
+print(f"\n  {len(ds['train'])} tickets to train on, {len(ds['eval'])} test tickets "
+      "(never trained on).")
+
+chat_tok = AutoTokenizer.from_pretrained(CHAT_MODEL)
+examples = pick_examples(ds["train"], k=len(CATEGORIES))   # one per category
+prompt_text = best_prompt(eval_rows[0]["ticket"], examples, chat_tok)
+prompt_tokens = len(chat_tok(prompt_text)["input_ids"])
+with open(PROMPT_FILE, "w", encoding="utf-8") as f:
+    f.write(f"The exact text SmolLM2 reads for test ticket 1 in STEP 3 "
+            f"({prompt_tokens} tokens).\n"
+            "Each <|im_start|> line says who is speaking; the model writes its "
+            "answer after the last one.\n"
+            "For every other ticket, only the last ticket changes.\n\n"
+            + "=" * 70 + "\n" + prompt_text)
+
+plain, best = [], []            # answers from STEP 2 and STEP 3
+
+def log():
+    write_answer_log(ANSWERS_FILE, eval_rows,
+                     [("just the ticket", plain), ("best prompt", best)])
+
+log()
+opened = open_in_editor(ANSWERS_FILE) and open_in_editor(PROMPT_FILE)   # prompt on top
+print(f"\n  {'Opened' if opened else 'Open'} these two files; read them while "
+      "the models work:")
+print(f"    out/lab1_best_prompt.txt  the whole best prompt ({prompt_tokens} tokens)")
+print("    out/lab1_answers.txt      every answer, filled in as it comes")
+print("  (Click back in the terminal before you type your next command.)")
 
 
 # ==========================================================================
@@ -49,11 +115,16 @@ print("=" * 70)
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
 model = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.float32)
 
-# TODO 1: get the model's answer to each test ticket. Show the first one.
-preds = None
-# TODO 2: score the answers against the correct ones.
-s = None
-save_result("baseline_distilgpt2", s, {"model": BASE_MODEL, "trained": False})
+for i, row in enumerate(eval_rows):
+    answer = ask(model, tokenizer, build_prompt(row["ticket"]), max_new_tokens=24)
+    plain.append(answer.split("\n")[0].strip())     # keep only the first line
+    log()
+    print(f"\r  answered {i + 1} of {N_EVAL}", end="", flush=True)
+print()
+
+s = score_answers(plain, eval_rows)
+save_result("baseline_distilgpt2", s, {"model": BASE_MODEL, "trained": False,
+                                       "answers": plain})
 
 
 # ==========================================================================
@@ -63,20 +134,18 @@ print("\n" + "=" * 70)
 print(f"STEP 3: {CHAT_MODEL.split('/')[-1]}, no training, the best prompt we can write")
 print("=" * 70)
 
-chat_tok = AutoTokenizer.from_pretrained(CHAT_MODEL)
 chat_model = AutoModelForCausalLM.from_pretrained(CHAT_MODEL, dtype=torch.float32)
-# The prompt: every label and rule, plus one worked example per category.
-examples = pick_examples(ds["train"], k=len(CATEGORIES))
-print(f"\n  The prompt: every label and rule, plus {len(examples)} worked examples.")
-prompt_text = chat_tok.apply_chat_template(
-    best_prompt_messages(eval_rows[0]["ticket"], examples),
-    tokenize=False, add_generation_prompt=True)
-prompt_tokens = len(chat_tok(prompt_text)["input_ids"])
 
-best_preds = best_prompt_predictions(chat_model, chat_tok, eval_rows, examples)
-best = score(best_preds, eval_rows)
-save_result("bestprompt_smollm2", best, {"model": CHAT_MODEL, "trained": False,
-                                         "method": "best prompt"})
+for i, row in enumerate(eval_rows):
+    prompt = best_prompt(row["ticket"], examples, chat_tok)
+    best.append(ask(chat_model, chat_tok, prompt, max_new_tokens=40))
+    log()
+    print(f"\r  answered {i + 1} of {N_EVAL}", end="", flush=True)
+print()
+
+best_s = score_answers(best, eval_rows)
+save_result("bestprompt_smollm2", best_s, {"model": CHAT_MODEL, "trained": False,
+                                           "method": "best prompt", "answers": best})
 
 
 # ==========================================================================
@@ -85,6 +154,6 @@ save_result("bestprompt_smollm2", best, {"model": CHAT_MODEL, "trained": False,
 print("\n" + "=" * 70)
 print(f"RESULTS ({N_EVAL} test tickets)")
 print("=" * 70)
-print_card([("random", RANDOM_GUESS), ("just ticket", s), ("best prompt", best)],
+print_card([("random", RANDOM_GUESS), ("just ticket", s), ("best prompt", best_s)],
            note=f"Best prompt = the score to beat. It costs a {prompt_tokens}-token "
                 "prompt on every request.")

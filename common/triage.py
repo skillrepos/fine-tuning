@@ -135,11 +135,15 @@ def to_prompt_completion(example):
 # Generation
 # --------------------------------------------------------------------------
 
-def generate_predictions(model, tokenizer, rows, max_new_tokens=24, show=0):
+def generate_predictions(model, tokenizer, rows, max_new_tokens=24, show=0,
+                         on_answer=None):
     """Get the model's answer to every row, as plain text.
 
     do_sample=False makes the model always pick its most likely next word, so
     we get its single best triage line, not a creative one.
+
+    on_answer, if given, is called with the answers so far after each one
+    (the labs use it to fill in a file while the model works).
     """
     model.eval()
     preds = []
@@ -163,6 +167,8 @@ def generate_predictions(model, tokenizer, rows, max_new_tokens=24, show=0):
         # Keep only the first line -- anything after it is the model rambling.
         pred = text.strip().split("\n")[0].strip()
         preds.append(pred)
+        if on_answer:
+            on_answer(preds)
         if i < show:
             print(f"\n  TICKET   : {row['ticket'][:70]}...")
             print(f"  EXPECTED : {row['label']}")
@@ -180,53 +186,6 @@ def pick_examples(train_rows, k=3):
             examples.append(row)
             seen.add(row["category"])
     return examples
-
-
-def best_prompt_messages(ticket, examples):
-    """The best prompt we can give a chat model without training it.
-
-    The full instructions (ZERO_SHOT_SYSTEM), then each worked example as a
-    ticket and its correct answer, then the new ticket.
-    """
-    messages = [{"role": "system", "content": ZERO_SHOT_SYSTEM}]
-    for ex in examples:
-        messages.append({"role": "user", "content": ex["ticket"]})
-        messages.append({"role": "assistant", "content": ex["label"]})
-    messages.append({"role": "user", "content": ticket})
-    return messages
-
-
-def best_prompt_predictions(model, tokenizer, rows, examples, max_new_tokens=40, show=0):
-    """Answers from an untrained chat model, given the best prompt we can write.
-
-    Unlike generate_predictions(), this keeps the whole answer, not just the
-    first line, so an answer spread over several lines can still earn credit
-    for the parts it gets right.
-    """
-    model.eval()
-    preds = []
-    for i, row in enumerate(rows):
-        text = tokenizer.apply_chat_template(
-            best_prompt_messages(row["ticket"], examples),
-            tokenize=False, add_generation_prompt=True,
-        )
-        inputs = tokenizer(text, return_tensors="pt")
-        with torch.no_grad():
-            out = model.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                do_sample=False,
-                eos_token_id=tokenizer.eos_token_id,
-                pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
-            )
-        pred = tokenizer.decode(out[0][inputs["input_ids"].shape[1]:],
-                                skip_special_tokens=True).strip()
-        preds.append(pred)
-        if i < show:
-            print(f"\n  TICKET   : {row['ticket'][:70]}...")
-            print(f"  EXPECTED : {row['label']}")
-            print(f"  GOT      : {pred[:70]!r}")
-    return preds
 
 
 # --------------------------------------------------------------------------
@@ -264,6 +223,12 @@ def _find_label(text, field, choices):
     return min(hits)[1] if hits else None
 
 
+def right_format(answer):
+    """True if the answer's first line is exactly
+    category: <category> | priority: <priority> | queue: <queue>"""
+    return bool(SCHEMA_RE.match(answer.strip().split("\n")[0].strip()))
+
+
 def extract_fields(pred):
     """Pull category, priority and queue out of an answer, even a messy one."""
     m = SCHEMA_RE.match(pred.strip().split("\n")[0].strip())
@@ -293,7 +258,7 @@ def score(preds, rows):
     n = len(rows)
     valid = cat = pri = que = 0
     for pred, row in zip(preds, rows):
-        valid += int(bool(SCHEMA_RE.match(pred.strip().split("\n")[0].strip())))
+        valid += int(right_format(pred))
         got = extract_fields(pred)
         cat += int(got["category"] == row["category"])
         pri += int(got["priority"] == row["priority"])
@@ -305,6 +270,56 @@ def score(preds, rows):
         "priority_acc": pri / n,
         "queue_acc": que / n,
     }
+
+
+def write_answer_log(path, rows, columns, title=None, only_mistakes=False):
+    """Write every test ticket, its correct answer, and each model's answer
+    so far to a text file. Rewritten after every answer, so the file fills in
+    while the lab runs.
+
+    columns is a list of (name, answers) pairs; answers may be shorter than
+    rows while a model is still working. With only_mistakes=True, a ticket is
+    listed only once the first column has answered it with a field wrong.
+    """
+    fields = ("category", "priority", "queue")
+    width = max(len("correct answer"), *(len(name) for name, _ in columns))
+    lines = [title or "Each test ticket, its correct answer, and what each model wrote.",
+             "This file fills in as the lab runs.  \u2713 = right   \u2717 = wrong", ""]
+    for i, row in enumerate(rows):
+        if only_mistakes:
+            first = columns[0][1]
+            if i >= len(first):
+                continue
+            got = extract_fields(first[i])
+            if all(got[f] == row[f] for f in fields):
+                continue
+        lines.append(f"Ticket {i + 1}: {row['ticket']}")
+        lines.append(f"  {'correct answer':{width}s} : {row['label']}")
+        for name, answers in columns:
+            if i >= len(answers):
+                lines.append(f"  {name:{width}s} : (waiting...)")
+                continue
+            text = " / ".join(l.strip() for l in answers[i].splitlines() if l.strip())
+            if len(text) > 110:
+                text = text[:107] + "..."
+            got = extract_fields(answers[i])
+            marks = "   ".join(f + (" \u2713" if got[f] == row[f] else " \u2717")
+                               for f in fields)
+            lines.append(f"  {name:{width}s} : {text or '(wrote nothing)'}")
+            lines.append(f"  {'':{width}s}   {marks}")
+        lines.append("")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+
+def open_in_editor(path):
+    """Open a file in a VS Code tab, if the `code` command is available."""
+    import shutil, subprocess
+    if shutil.which("code"):
+        subprocess.run(["code", path], stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, check=False)
+        return True
+    return False
 
 
 def print_card(columns, note=None):
@@ -382,9 +397,31 @@ def param_report(model, label="model"):
     return trainable, total
 
 
-def plain_progress(trainer):
+def quick_answer(model, tokenizer, ticket, max_new_tokens=24):
+    """The model's answer to one ticket right now (first line only).
+    Safe to call in the middle of training."""
+    was_training = model.training
+    model.eval()
+    inputs = tokenizer(build_prompt(ticket), return_tensors="pt").to(model.device)
+    with torch.no_grad():
+        out = model.generate(
+            **inputs, max_new_tokens=max_new_tokens, do_sample=False,
+            eos_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
+        )
+    if was_training:
+        model.train()
+    text = tokenizer.decode(out[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+    return text.strip().split("\n")[0].strip()
+
+
+def plain_progress(trainer, watch=None):
     """Swap the Trainer's progress bar and raw log lines for one plain line
-    every time it reports the loss."""
+    every time it reports the loss.
+
+    watch, if given, is (tokenizer, row): at each report, also print the
+    model's answer to that one test ticket, so you can see it learn.
+    """
     from transformers import TrainerCallback
     from transformers.trainer_callback import PrinterCallback, ProgressCallback
 
@@ -395,11 +432,24 @@ def plain_progress(trainer):
         def on_train_begin(self, args, state, control, **kwargs):
             print(f"\n  Training, {state.max_steps} steps. Loss = how wrong its guesses "
                   "are (watch it fall):", flush=True)
+            if watch:
+                print(f"  Its answer to test ticket 1, whose correct answer is\n"
+                      f"    {watch[1]['label']}", flush=True)
+                print("    before training", flush=True)
+                show_answer(kwargs.get("model"))
 
-        def on_log(self, args, state, control, logs=None, **kwargs):
+        def on_log(self, args, state, control, logs=None, model=None, **kwargs):
             if logs and "loss" in logs:
                 print(f"    step {state.global_step:>3} of {state.max_steps}   "
                       f"loss {float(logs['loss']):.3f}", flush=True)
+                show_answer(model)
+
+    def show_answer(model):
+        if watch and model is not None:
+            answer = quick_answer(model, watch[0], watch[1]["ticket"])
+            if len(answer) > 66:
+                answer = answer[:63] + "..."
+            print(f"      answer: {answer or '(nothing)'}", flush=True)
 
     trainer.add_callback(PlainProgress())
 
