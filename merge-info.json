@@ -6,9 +6,9 @@
         "endAnchor": "return tok.decode(new_part, skip_special_tokens=True).strip()",
         "title": "How a model is asked",
         "note": [
-          "**Turns the prompt into token numbers, lets the model write, and turns the new part back into text.**",
-          "- `do_sample=False`: always the most likely next word, so the answer is the same every run",
-          "- Stops at the length limit or at the model's end-of-text token"
+          "**Turns the prompt into token numbers, lets the model write, and turns what it wrote back into text.**",
+          "- `do_sample=False`: always pick the most likely next word, so the answer is the same every run",
+          "- It stops at the length limit, or when the model writes its end-of-text marker"
         ]
       },
       {
@@ -16,9 +16,10 @@
         "endAnchor": "messages.append({\"role\": \"user\", \"content\": ticket})",
         "title": "Build the best prompt",
         "note": [
-          "**Adds the worked examples as a conversation: each ticket, then its correct answer.**",
-          "- The model sees the pattern 8 times before the real ticket",
-          "- Open `out/lab1_best_prompt.txt` while the lab runs to see the whole thing"
+          "**Adds the worked examples to the prompt as a conversation.**",
+          "- Each example is a ticket followed by its correct answer, one per category",
+          "- Examples teach the format well (100% right format), but not which label fits (30% category)",
+          "- Open `out/lab1_best_prompt.txt` while the lab runs to see the whole prompt"
         ]
       },
       {
@@ -27,7 +28,8 @@
         "title": "Score the answers",
         "note": [
           "**Finds the category, priority and queue each answer names, and counts the ones that match.**",
-          "- They count even when the format is wrong; format is scored on its own line above"
+          "- A field counts even if the answer's format is wrong",
+          "- The format itself is checked separately, on the line just above"
         ]
       }
     ],
@@ -37,8 +39,8 @@
         "lines": 1,
         "title": "One training example per ticket",
         "note": [
-          "**Joins the prompt, the correct answer and an end token into one example.**",
-          "- The end token is how the model learns where to stop"
+          "**Joins the prompt, the correct answer and an end-of-text marker into one training example.**",
+          "- The marker is how the model learns where to stop writing"
         ]
       },
       {
@@ -56,7 +58,9 @@
         "endAnchor": "processing_class=tokenizer,",
         "title": "Hand the data to the Trainer",
         "note": [
-          "**Gives the Trainer the training examples, the batching helper and the tokenizer.**"
+          "**Gives the Trainer the training examples, plus two helpers:**",
+          "- one that groups the examples into batches of 8",
+          "- one that turns text into token numbers"
         ]
       }
     ],
@@ -66,9 +70,9 @@
         "endAnchor": "\"gate_proj\", \"up_proj\", \"down_proj\"],",
         "title": "LoRA settings",
         "note": [
-          "**How big the adapters are, and which layers they attach to.**",
-          "- `r`: adapter size. `lora_alpha`: how strongly it counts (usually 2 x r)",
-          "- `target_modules`: this model's own layer names"
+          "**How big the adapters are, and which parts of the model get one.**",
+          "- `r`: adapter size. `lora_alpha`: how much the adapter's changes count (usually 2 x r)",
+          "- `target_modules`: the names of the parts that get an adapter. Each model family names them differently"
         ]
       },
       {
@@ -76,8 +80,8 @@
         "endAnchor": "param_report(peft_model, \"SmolLM2-360M + LoRA\")",
         "title": "Add the adapters",
         "note": [
-          "**Leaves the model unchanged and adds small trainable adapters beside it.**",
-          "- The printed line shows only about 2% of it will train"
+          "**Leaves the model's own numbers unchanged and adds small add-ons beside them. Only the add-ons are trained.**",
+          "- The printed line shows that only about 2% of all the numbers will be trained"
         ]
       },
       {
@@ -85,7 +89,7 @@
         "lines": 1,
         "title": "Grade only the answer",
         "note": [
-          "**Marks the ticket part -100 (\"don't grade\"), so only the answer is graded.**",
+          "**Marks the ticket part with -100, the code for \"don't grade\", so only the answer is graded.**",
           "- Lab 2 also graded the model on retyping the ticket"
         ]
       }
@@ -96,8 +100,8 @@
         "endAnchor": "bnb_4bit_use_double_quant=True,",
         "title": "4-bit settings",
         "note": [
-          "**Store the unchanged model at 4 bits per number to save memory.**",
-          "- `nf4`: a 4-bit format designed for model numbers",
+          "**Stores the model's numbers at 4 bits each, to save memory. Training never changes them.**",
+          "- `nf4`: a 4-bit format designed for the kind of numbers models hold",
           "- Calculations still run at 16 bits"
         ]
       },
@@ -106,7 +110,7 @@
         "lines": 1,
         "title": "Load the model in 4 bits",
         "note": [
-          "**Passes those settings to the loader, so the model is stored in 4 bits.**",
+          "**Passes those settings to the line that loads the model, so it is stored in 4 bits.**",
           "- Leave it out and the model loads at full size"
         ]
       },
@@ -116,8 +120,8 @@
         "title": "Fold the adapter in",
         "note": [
           "**Loads the trained adapter and folds it permanently into the model.**",
-          "- Folded into a 16-bit copy, never the 4-bit one",
-          "- The result is one ordinary model, no adapter file"
+          "- It is folded into a 16-bit copy, never the 4-bit one",
+          "- The result is one ordinary model, with no separate adapter file"
         ]
       }
     ],
@@ -127,8 +131,8 @@
         "lines": 1,
         "title": "Attach the Lab 3 adapter",
         "note": [
-          "**Puts your Lab 3 adapter back on top of the unchanged model.**",
-          "- This is how an adapter is used outside the training script"
+          "**Puts your Lab 3 adapter back on top of the original SmolLM2 model.**",
+          "- This is how you use an adapter once training is done"
         ]
       },
       {
@@ -159,9 +163,9 @@
         "done": "inputs = tok(prompt, return_tensors=\"pt\")",
         "title": "How a model is asked",
         "note": [
-          "**Turns the prompt into token numbers, lets the model write, and turns the new part back into text.**",
-          "- `do_sample=False`: always the most likely next word, so the answer is the same every run",
-          "- Stops at the length limit or at the model's end-of-text token"
+          "**Turns the prompt into token numbers, lets the model write, and turns what it wrote back into text.**",
+          "- `do_sample=False`: always pick the most likely next word, so the answer is the same every run",
+          "- It stops at the length limit, or when the model writes its end-of-text marker"
         ],
         "lines": 3
       },
@@ -170,9 +174,10 @@
         "done": "for ex in examples:",
         "title": "Build the best prompt",
         "note": [
-          "**Adds the worked examples as a conversation: each ticket, then its correct answer.**",
-          "- The model sees the pattern 8 times before the real ticket",
-          "- Open `out/lab1_best_prompt.txt` while the lab runs to see the whole thing"
+          "**Adds the worked examples to the prompt as a conversation.**",
+          "- Each example is a ticket followed by its correct answer, one per category",
+          "- Examples teach the format well (100% right format), but not which label fits (30% category)",
+          "- Open `out/lab1_best_prompt.txt` while the lab runs to see the whole prompt"
         ],
         "lines": 2
       },
@@ -182,7 +187,8 @@
         "title": "Score the answers",
         "note": [
           "**Finds the category, priority and queue each answer names, and counts the ones that match.**",
-          "- They count even when the format is wrong; format is scored on its own line above"
+          "- A field counts even if the answer's format is wrong",
+          "- The format itself is checked separately, on the line just above"
         ],
         "lines": 2
       }
@@ -193,8 +199,8 @@
         "done": "text = build_prompt(example[\"ticket\"]) + example[\"label\"] + tokenizer.eos_token",
         "title": "One training example per ticket",
         "note": [
-          "**Joins the prompt, the correct answer and an end token into one example.**",
-          "- The end token is how the model learns where to stop"
+          "**Joins the prompt, the correct answer and an end-of-text marker into one training example.**",
+          "- The marker is how the model learns where to stop writing"
         ],
         "lines": 4
       },
@@ -213,7 +219,9 @@
         "done": "train_dataset=tokenized[\"train\"],",
         "title": "Hand the data to the Trainer",
         "note": [
-          "**Gives the Trainer the training examples, the batching helper and the tokenizer.**"
+          "**Gives the Trainer the training examples, plus two helpers:**",
+          "- one that groups the examples into batches of 8",
+          "- one that turns text into token numbers"
         ]
       }
     ],
@@ -223,9 +231,9 @@
         "done": "r=16,                    # adapter size: bigger can learn more, but trains slower",
         "title": "LoRA settings",
         "note": [
-          "**How big the adapters are, and which layers they attach to.**",
-          "- `r`: adapter size. `lora_alpha`: how strongly it counts (usually 2 x r)",
-          "- `target_modules`: this model's own layer names"
+          "**How big the adapters are, and which parts of the model get one.**",
+          "- `r`: adapter size. `lora_alpha`: how much the adapter's changes count (usually 2 x r)",
+          "- `target_modules`: the names of the parts that get an adapter. Each model family names them differently"
         ],
         "lines": 2
       },
@@ -234,8 +242,8 @@
         "done": "peft_model = get_peft_model(model, peft_config)",
         "title": "Add the adapters",
         "note": [
-          "**Leaves the model unchanged and adds small trainable adapters beside it.**",
-          "- The printed line shows only about 2% of it will train"
+          "**Leaves the model's own numbers unchanged and adds small add-ons beside them. Only the add-ons are trained.**",
+          "- The printed line shows that only about 2% of all the numbers will be trained"
         ],
         "lines": 2
       },
@@ -244,7 +252,7 @@
         "done": "labels = [-100] * len(prompt_ids) + full_ids[len(prompt_ids):]",
         "title": "Grade only the answer",
         "note": [
-          "**Marks the ticket part -100 (\"don't grade\"), so only the answer is graded.**",
+          "**Marks the ticket part with -100, the code for \"don't grade\", so only the answer is graded.**",
           "- Lab 2 also graded the model on retyping the ticket"
         ],
         "lines": 3
@@ -256,8 +264,8 @@
         "done": "bnb_config = BitsAndBytesConfig(",
         "title": "4-bit settings",
         "note": [
-          "**Store the unchanged model at 4 bits per number to save memory.**",
-          "- `nf4`: a 4-bit format designed for model numbers",
+          "**Stores the model's numbers at 4 bits each, to save memory. Training never changes them.**",
+          "- `nf4`: a 4-bit format designed for the kind of numbers models hold",
           "- Calculations still run at 16 bits"
         ],
         "lines": 4
@@ -267,7 +275,7 @@
         "done": "quantization_config=bnb_config,         # hand the 4-bit settings to the loader",
         "title": "Load the model in 4 bits",
         "note": [
-          "**Passes those settings to the loader, so the model is stored in 4 bits.**",
+          "**Passes those settings to the line that loads the model, so it is stored in 4 bits.**",
           "- Leave it out and the model loads at full size"
         ]
       },
@@ -277,8 +285,8 @@
         "title": "Fold the adapter in",
         "note": [
           "**Loads the trained adapter and folds it permanently into the model.**",
-          "- Folded into a 16-bit copy, never the 4-bit one",
-          "- The result is one ordinary model, no adapter file"
+          "- It is folded into a 16-bit copy, never the 4-bit one",
+          "- The result is one ordinary model, with no separate adapter file"
         ],
         "lines": 3
       }
@@ -289,8 +297,8 @@
         "done": "model = PeftModel.from_pretrained(base, LORA_DIR)",
         "title": "Attach the Lab 3 adapter",
         "note": [
-          "**Puts your Lab 3 adapter back on top of the unchanged model.**",
-          "- This is how an adapter is used outside the training script"
+          "**Puts your Lab 3 adapter back on top of the original SmolLM2 model.**",
+          "- This is how you use an adapter once training is done"
         ],
         "lines": 2
       },
