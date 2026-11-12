@@ -1,6 +1,6 @@
 # Fine-Tuning Small AI Models: LoRA, QLoRA & Evaluation
 
-## Revision 1.16 - 11/11/26
+## Revision 1.17 - 11/12/26
 
 **Workshop labs**
 
@@ -62,12 +62,16 @@ writes two files for you to look at while it runs.
 
 <br><br>
 
-3. While it runs, open a second terminal (click the **+** at the top right of
-the terminal panel) and look at the best prompt:
+3. When the first terminal prints **Wrote two files**, open a second terminal
+(click the **+** at the top right of the terminal panel) and look at the best
+prompt:
 
 ```
 cat out/lab1_best_prompt.txt
 ```
+
+If `cat` says *No such file or directory*, the file is not written yet: wait a
+few seconds and run it again. The same goes for every file the labs write.
 
 *Optional:* to open it in an editor tab instead, run
 `code out/lab1_best_prompt.txt`.
@@ -158,14 +162,16 @@ python finetune/lab2_fullft.py
 ```
 
 While it runs: **STEP 1** says **100%** of the model will be trained. Then
-watch the **loss**, how wrong the model's guesses are, fall as it trains.
-Under each loss line is the model's answer to one test ticket at that moment.
+watch the **loss**, how wrong the model's guesses are, fall as it trains. It
+prints every 3 steps, and every 18 steps it also shows the model's answer to
+one test ticket at that moment.
 Before training it just writes more ticket-like text. Watch it learn the
 format, then the labels. Which part keeps changing?
 
 <br><br>
 
-3. While it trains, look at exactly what it trains on, in your second
+3. When the first terminal prints **Wrote out/lab2_examples.txt** (just
+before training starts), look at exactly what it trains on, in your second
 terminal:
 
 ```
@@ -226,6 +232,11 @@ almost everything.
 (one pass over the data) and rerun. Change one thing at a time, so you know
 what made the difference. Set it back and rerun before Lab 5.
 
+**Optional:** to see the loss for every single step, rerun with
+`python finetune/lab2_fullft.py --loss-every 1`. Each number then comes from
+one batch of 8 tickets, so it jumps around more than the default, which is the
+average of 3 steps. Printing more often does not change the training.
+
 <p align="center">**[END OF LAB]**</p></br></br>
 
 ---
@@ -262,13 +273,16 @@ python finetune/lab3_lora.py
 
 While it runs: **STEP 1** says about **2%** of the model will be trained
 (Lab 2: 100%). The next line shows the model is now graded only on its answer,
-not on repeating the ticket back. During training, watch its answer to test
-ticket 1 change, as in Lab 2.
+not on repeating the ticket back. During training, the loss now prints every
+step. It falls unevenly, sometimes rising a little, because each step trains
+on a different 8 tickets. Every 6 steps, watch its answer to test ticket 1 change, as in
+Lab 2.
 
 <br><br>
 
-3. While it trains, look at the same kind of training examples as in Lab 2,
-now split into the part that is graded and the part that is not:
+3. When the first terminal prints **Wrote out/lab3_examples.txt** (the end of
+STEP 1, after the model loads), look at the same kind of training examples as
+in Lab 2, now split into the part that is graded and the part that is not:
 
 ```
 cat out/lab3_examples.txt
@@ -284,13 +298,41 @@ the third block you merged. (SmolLM2's end-of-text marker is `<|im_end|>`.)
 
 <br><br>
 
-4. Back in the first terminal, read the line after training: the adapter is a few tens of MB; a full copy
-would be about 1,400 MB. One shared model, plus a small adapter per customer
-or task.
+4. Still training? Look at what is being trained, in your second terminal:
+
+```
+cat out/lab3_adapter.txt
+```
+
+*Optional:* to open it in an editor tab instead, run
+`code out/lab3_adapter.txt`.
+
+One part of the model keeps its own big table of numbers, untouched. The
+adapter adds two small tables beside it, and only those are trained. Find the
+`16`: it is the `r=16` you merged.
+
+![Lab 3 adapter file](./images/ft-lab3-adapter-file.png?raw=true "One part of the model: its own table of numbers, and the adapter's two small tables")
 
 <br><br>
 
-5. When it starts answering the test tickets, look at the answers in your
+5. Back in the first terminal, read the line after training: the adapter is a
+few tens of MB; a full copy would be about 1,400 MB. One shared model, plus a
+small adapter per customer or task. Then list what was saved, in your second
+terminal:
+
+```
+ls -lh out/smollm2-lora
+```
+
+`adapter_model.safetensors` (34M) is the adapter. `adapter_config.json` holds
+its settings, including the name of the one model it fits: an adapter is no
+use without that model. The other files are the tokenizer's and a README.
+
+![Saved adapter files](./images/ft-lab3-adapter-saved.png?raw=true "The files Lab 3 saved: the adapter, its settings, and the tokenizer")
+
+<br><br>
+
+6. When it starts answering the test tickets, look at the answers in your
 second terminal. Run it again to see more.
 
 ```
@@ -309,7 +351,7 @@ model still get wrong?
 
 <br><br>
 
-6. Back in the first terminal, read **RESULTS**:
+7. Back in the first terminal, read **RESULTS**:
 
 ![Lab 3 results](./images/ft-lab3-results.png?raw=true "Lab 3 next to Lab 2 and the best prompt")
 
@@ -321,6 +363,11 @@ this is the workshop's progress, not LoRA's alone.)
 **Optional (outside the 10 minutes):** in your file, change `r=16` to `r=8`
 and `lora_alpha=32` to `16` (a smaller adapter) and rerun. Set them back and
 rerun before Lab 5, which uses this adapter.
+
+**Optional:** rerun with `python finetune/lab3_lora.py --loss-every 6`. You get
+4 smoother loss numbers, each the average of 6 steps: the ups and downs are
+hidden, not gone. Printing less often does not change the training, though
+Lab 3's scores can vary a little from run to run.
 
 <p align="center">**[END OF LAB]**</p></br></br>
 
@@ -364,8 +411,9 @@ much a model 3 times bigger would need at 4 bits. Less than Lab 3's model at
 
 <br><br>
 
-4. While STEP 2 trains, look at what 4 bits does to the model's numbers, in
-your second terminal:
+4. When the first terminal prints **Wrote out/lab4_numbers.txt** (the end of
+STEP 1), look at what 4 bits does to the model's numbers while STEP 2 trains,
+in your second terminal:
 
 ```
 cat out/lab4_numbers.txt
@@ -386,11 +434,13 @@ Lab 3. Use QLoRA when memory is the problem.
 
 <br><br>
 
-6. Read **STEP 3**: the adapter folded into one ordinary model. Fold it in for
-one dedicated use; keep adapters separate to share one model across many
-customers.
+6. Read **STEP 3**: the adapter folded into one ordinary model, then the
+memory each choice needs. Kept separate, the model can stay in 4 bits. Folded
+in, it is one simple model to ship, but a bigger one. Fold it in for one
+dedicated use; keep adapters separate to share one model across many
+customers. Lab 5 checks that folding in does not change the answers.
 
-![Lab 4 output](./images/ft-lab4-results.png?raw=true "Memory at 32 and 4 bits, training time, and the folded-in model")
+![Lab 4 output](./images/ft-lab4-results.png?raw=true "Memory at 32 and 4 bits, training time, the folded-in model, and the memory each choice needs")
 
 <br><br>
 
@@ -416,9 +466,10 @@ everything else. This lab looks for both.
 
 <br><br>
 
-1. Merge the three highlighted blocks: attaching your Lab 3 adapter to the
-original model, counting right answers for each category, and switching the
-adapter off to quiz the original model.
+1. Merge the four highlighted blocks: attaching your Lab 3 adapter to the
+original model, counting right answers for each category, switching the
+adapter off to quiz the original model, and folding the adapter into the
+model.
 
 ```
 code -d extra/lab5_eval_complete.txt finetune/lab5_eval.py
@@ -426,7 +477,7 @@ code -d extra/lab5_eval_complete.txt finetune/lab5_eval.py
 
 <br><br>
 
-2. Run it (about 2 minutes):
+2. Run it (about 3 minutes):
 
 ```
 python finetune/lab5_eval.py
@@ -441,8 +492,9 @@ python finetune/lab5_eval.py
 
 <br><br>
 
-4. While **STEP 2** has the Lab 3 model answer the test tickets, look at
-every ticket it gets at least partly wrong, in your second terminal. Run it
+4. When **STEP 2** prints **Writing out/lab5_mistakes.txt** (after it loads
+the Lab 3 model), look at every ticket it gets at least partly wrong, in your
+second terminal, while it answers. Run it
 again to see more.
 
 ```
@@ -473,13 +525,23 @@ luck. A **big drop** would mean training damaged the model's other skills.
 
 <br><br>
 
-7. **Think about it:** which model would you put into production for
+7. Read **STEP 4**: the same 20 tickets, answered with the adapter kept
+separate and then folded in (the last block you merged). The answers match:
+folding in changes how the model is packaged, not what it answers. Folded in
+is a little faster, but it is one big model, and the adapter can no longer be
+switched off or swapped. Which would you pick for one customer? For fifty?
+
+![Lab 5 separate or folded in](./images/ft-lab5-fold.png?raw=true "The same 20 tickets with the adapter kept separate, then folded in")
+
+<br><br>
+
+8. **Think about it:** which model would you put into production for
 Northwind, and which two numbers from today support it?
 
 <br><br>
 
 **Optional (outside the 10 minutes): compare with a big hosted model.**
-**STEP 4** sends the same tickets to a very large model hosted by Groq, with the
+**STEP 5** sends the same tickets to a very large model hosted by Groq, with the
 best prompt. It needs a free key: follow "Optional: a free Groq API key" in
 `README.md`, then rerun. If a hosted model wins, you may not need to fine-tune.
 Check that first.

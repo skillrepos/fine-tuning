@@ -2,12 +2,12 @@
 Lab 5 - Compare everything, find where the model fails, and check that
 training did not make it worse at everything else.
 
-STEP 4 is optional and needs a free GROQ_API_KEY. It compares your model with
+STEP 5 is optional and needs a free GROQ_API_KEY. It compares your model with
 a much larger hosted model, given the best prompt we can write. Without a key
 it is skipped.
 """
 
-import sys, os
+import sys, os, time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("TQDM_DISABLE", "1")   # no progress bars from the quiz tool
 import common.quiet   # hide library warnings and progress bars
@@ -92,8 +92,10 @@ def log(answers):
 log([])
 print("\n  Writing out/lab5_mistakes.txt as it answers: every ticket the model")
 print("  gets wrong. Look at it while this step and the quiz run (see labs.md).")
+t0 = time.time()
 preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24,
                              on_answer=log)
+separate_seconds = time.time() - t0   # STEP 4 compares this with the folded-in model
 
 per = defaultdict(lambda: [0, 0])     # category -> [right, tickets]
 mixups = Counter()                    # (right category, model's answer) -> count
@@ -146,10 +148,48 @@ print("     mean training hurt the model's other skills.")
 
 
 # ==========================================================================
-# STEP 4 (optional, needs GROQ_API_KEY) - A huge hosted model, prompt only
+# STEP 4 - Keep the adapter separate, or fold it into the model?
 # ==========================================================================
 print("\n" + "=" * 78)
-print("STEP 4 (optional): A huge hosted model, best prompt, no training")
+print("STEP 4: Keep the adapter separate, or fold it into the model?")
+print("=" * 78)
+
+# Until now the adapter sat beside the model as a separate add-on. Folding it
+# in adds its changes to the model's own numbers; the add-on is then gone.
+# TODO 4: fold the adapter into the model's own numbers, so the two become
+#         one ordinary model: model.merge_and_unload()
+folded = model
+
+# Ask the folded-in model the same tickets STEP 2 asked with the adapter separate.
+print("\n  Folded the adapter in. Answering the same tickets again...")
+t0 = time.time()
+folded_preds = generate_predictions(folded, tokenizer, eval_rows, max_new_tokens=24)
+folded_seconds = time.time() - t0
+same = sum(a == b for a, b in zip(preds, folded_preds))
+
+adapter_mb = (results.get("lora_smollm2") or {}).get("artifact_mb", 0)
+full_mb = sum(p.numel() * 4 for p in folded.parameters()) / 1024 ** 2   # 4 bytes per number
+
+print_card([("separate", score(preds, eval_rows)),
+            ("folded in", score(folded_preds, eval_rows))])
+print(f"  {'seconds':14s}{separate_seconds:13.0f}{folded_seconds:13.0f}")
+print(f"  {'MB to ship':14s}{int(adapter_mb + 0.5):13,}{full_mb:13,.0f}")
+if same == len(eval_rows):
+    print(f"\n  Same answer on all {same} tickets: folding in changes how the model is")
+    print("  packaged, not what it answers.")
+else:
+    print(f"\n  Same answer on {same} of {len(eval_rows)} tickets: folding in rounds the "
+          "numbers a")
+    print("  tiny bit differently, which can tip a close answer.")
+print(f"  The {int(adapter_mb + 0.5)} MB adapter still needs the {full_mb:,.0f} MB model beside it, but many")
+print("  adapters can share that one model.")
+
+
+# ==========================================================================
+# STEP 5 (optional, needs GROQ_API_KEY) - A huge hosted model, prompt only
+# ==========================================================================
+print("\n" + "=" * 78)
+print("STEP 5 (optional): A huge hosted model, best prompt, no training")
 print("=" * 78)
 
 groq_preds = groq_predictions(eval_rows, model=FRONTIER_MODEL)

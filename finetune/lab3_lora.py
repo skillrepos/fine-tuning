@@ -20,7 +20,8 @@ from peft import LoraConfig, get_peft_model
 
 from common.triage import (
     load_tickets, build_prompt, generate_predictions, score, save_result,
-    load_results, print_card, param_report, plain_progress, write_answer_log,
+    load_results, print_card, param_report, plain_progress, loss_every,
+    write_answer_log,
     OUT_DIR,
 )
 
@@ -105,6 +106,57 @@ print("  Wrote out/lab3_examples.txt: the graded and not-graded parts of 3 examp
       "\n  (see labs.md).")
 
 
+# --------------------------------------------------------------------------
+# What LoRA added to the model: write a file to read while it trains
+# --------------------------------------------------------------------------
+def write_adapter_file(path, peft_model):
+    """Put one part of the model's own table of numbers next to the two small
+    tables the adapter adds beside it."""
+    name, part = [(n, m) for n, m in peft_model.named_modules()
+                  if hasattr(m, "lora_A")][0]
+    name = name[name.find("layers."):]
+    own = part.base_layer.weight          # the model's own table: never trained
+    a = part.lora_A["default"].weight     # the adapter's two small tables,
+    b = part.lora_B["default"].weight     # the only numbers that are trained
+    n_parts = sum(1 for _, m in peft_model.named_modules() if hasattr(m, "lora_A"))
+    n_adapter = sum(p.numel() for n, p in peft_model.named_parameters() if "lora_" in n)
+    n_model = sum(p.numel() for n, p in peft_model.named_parameters() if "lora_" not in n)
+
+    lines = [
+        "What LoRA added to the model, before any training.",
+        "",
+        f"One part of the model: {name}   (a q_proj from your LoRA settings)",
+        f"  its own table    : {own.shape[0]} x {own.shape[1]} = {own.numel():,} numbers"
+        "   (never trained)",
+        f"  the adapter adds : table A, {a.shape[0]} x {a.shape[1]}, and table B, "
+        f"{b.shape[0]} x {b.shape[1]}",
+        f"                     = {a.numel() + b.numel():,} numbers   (trained)",
+        "",
+        "  This part's result = its own table's result + the result of A, then B.",
+        f"  The {a.shape[0]} is r, the adapter size from the first block you merged.",
+        "",
+        f"The whole model: {n_parts} parts each got an adapter like this one.",
+        f"  the model's own numbers : {n_model:>12,}   (never trained)",
+        f"  the adapters' numbers   : {n_adapter:>12,}   (trained, and all that is saved)",
+        "",
+        "Table B starts as all zeros, so before training the adapter changes nothing:",
+        "  first 5 numbers of B: " + "  ".join(f"{v:.1f}" for v in b[0, :5].tolist()),
+        "",
+        "Training changes A and B only. The model's own numbers stay exactly as",
+        "they were. That is why the adapter can be kept as a small separate file,",
+        "or folded into the model later (Labs 4 and 5).",
+    ]
+    with open(path, "w", encoding="utf-8") as out:
+        out.write("\n".join(lines) + "\n")
+
+
+try:
+    write_adapter_file(os.path.join(OUT_DIR, "lab3_adapter.txt"), peft_model)
+    print("  Wrote out/lab3_adapter.txt: what the adapter adds to one part of the model.")
+except Exception as e:   # the lab still works without this file
+    print(f"  (Could not write out/lab3_adapter.txt: {e})")
+
+
 # ==========================================================================
 # STEP 2 - Train the adapter
 # ==========================================================================
@@ -119,7 +171,7 @@ args = TrainingArguments(
     learning_rate=1e-3,         # bigger than Lab 2's: only the small adapter changes
     warmup_steps=0.1,           # start with small adjustments for the first 10% of steps
     lr_scheduler_type="cosine", # ...then make them smaller again toward the end
-    logging_steps=6,            # report the loss 4 times
+    logging_steps=loss_every(1),  # print the loss every step (or: --loss-every N)
     save_strategy="no",         # don't save extra copies while training
     use_cpu=True,               # run on the processor, not a graphics card
     optim="adamw_torch",
@@ -135,7 +187,7 @@ trainer = Trainer(
 )
 
 # One plain line per loss report, plus the model's answer to one test ticket
-# at that moment, so you can watch it learn.
+# 4 times along the way, so you can watch it learn.
 plain_progress(trainer, watch=(tokenizer, eval_rows[0]))
 t0 = time.time()
 trainer.train()

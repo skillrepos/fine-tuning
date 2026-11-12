@@ -34,7 +34,7 @@ support tickets into one strict line in a made-up company's own format.
 | Account | Needed? | Why |
 |---|---|---|
 | **GitHub** (free) | **Yes** | To run the workshop's Codespace. Sign up at <https://github.com/signup> if you do not have one. |
-| **Groq** (free, no credit card) | Optional | Only for Lab 5's optional STEP 4. See [below](#optional-a-free-groq-api-key-for-lab-5s-step-4). |
+| **Groq** (free, no credit card) | Optional | Only for Lab 5's optional STEP 5. See [below](#optional-a-free-groq-api-key-for-lab-5s-step-5). |
 
 
 <br>
@@ -118,7 +118,7 @@ More detail and fixes for common problems: [README-Codespace.md](README-Codespac
 
 ---
 
-## Optional: a free Groq API key for Lab 5's STEP 4
+## Optional: a free Groq API key for Lab 5's STEP 5
 
 Lab 5 ends with an **optional** step that compares your fine-tuned model against a
 very large model hosted by Groq. It needs a free Groq API key. **Every other lab

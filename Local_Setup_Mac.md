@@ -190,13 +190,13 @@ Any `FAIL` line tells you what to fix. `WARN` lines are optional.
 
 <br>
 
-## 9. (Optional) Set up a Groq key for Lab 5's STEP 4
+## 9. (Optional) Set up a Groq key for Lab 5's STEP 5
 
 Lab 5 has one **optional** step that compares your model against a large hosted
 model on Groq. It needs a free Groq API key. Every other lab runs without one.
 
 To get a key, follow the screenshots in **[README.md, "Optional: a free Groq API
-key"](README.md#optional-a-free-groq-api-key-for-lab-5s-step-6)**. Then, in your
+key"](README.md#optional-a-free-groq-api-key-for-lab-5s-step-5)**. Then, in your
 Terminal (with `(.venv)` active):
 
 ```

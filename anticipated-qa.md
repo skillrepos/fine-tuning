@@ -165,8 +165,8 @@ full fine-tuning still wins. Most enterprise work is adaptation.
 
 **Q: Does LoRA slow down inference?**
 A: Slightly, if you keep the adapter separate — you are doing an extra small matmul
-per adapted layer. Merging (Lab 4) removes that entirely at the cost of losing
-adapter swapping. For most workloads the unmerged overhead is a few percent and
+per adapted layer. Merging (Lab 4; timed side by side in Lab 5's STEP 4) removes
+that entirely at the cost of losing adapter swapping. For most workloads the unmerged overhead is a few percent and
 well worth the flexibility.
 
 **Q: Can I stack multiple adapters?**
@@ -342,7 +342,7 @@ narrow task, high volume, small model you own. Do not over-generalise it — tha
 same 360M model will lose badly on anything requiring real reasoning.
 
 **Q: Do I need a Groq account for the workshop?**
-A: No. Lab 5 Step 6 is the only thing that uses it, it prints a note and skips
+A: No. Lab 5's STEP 5 is the only thing that uses it, it prints a note and skips
 without a key, and nothing downstream depends on it. The free tier at
 console.groq.com allows 30 requests/minute and 8,000 tokens/minute; the step
 spends 20 requests and roughly 6,000 tokens, so it fits — but a second run inside

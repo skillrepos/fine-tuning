@@ -153,6 +153,16 @@
           "- The adapter is a separate add-on, so it can be turned off and on",
           "- The next line quizzes again with it on, for the after score"
         ]
+      },
+      {
+        "anchor": "folded = model.merge_and_unload()",
+        "lines": 1,
+        "title": "Fold the adapter in",
+        "note": [
+          "**Adds the adapter's changes into the model's own numbers. The two become one ordinary model.**",
+          "- The next lines ask the same 20 tickets again, to check the answers did not change",
+          "- After this the adapter can no longer be switched off or swapped"
+        ]
       }
     ]
   },
@@ -320,6 +330,17 @@
           "**Switches the Lab 3 adapter off for one quiz, so it scores the original model.**",
           "- The adapter is a separate add-on, so it can be turned off and on",
           "- The next line quizzes again with it on, for the after score"
+        ],
+        "lines": 3
+      },
+      {
+        "anchor": "# TODO 4: fold the adapter into the model's own numbers",
+        "done": "folded = model.merge_and_unload()",
+        "title": "Fold the adapter in",
+        "note": [
+          "**Adds the adapter's changes into the model's own numbers. The two become one ordinary model.**",
+          "- The next lines ask the same 20 tickets again, to check the answers did not change",
+          "- After this the adapter can no longer be switched off or swapped"
         ],
         "lines": 3
       }

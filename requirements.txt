@@ -36,7 +36,7 @@ lm-eval>=0.4.12,<0.5    # EleutherAI lm-evaluation-harness
 evaluate>=0.4.6,<1.0
 scikit-learn>=1.5.0,<2
 
-# --- optional: frontier-model comparison in Lab 5's STEP 6 -------------------
+# --- optional: frontier-model comparison in Lab 5's STEP 5 -------------------
 # Only used if GROQ_API_KEY is set. The step skips cleanly without it, and no
 # other lab touches this package. The 1.x line is API-compatible with 0.11 and
 # retries rate limits for you; the model ID lives in common/triage.py because

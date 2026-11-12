@@ -18,7 +18,7 @@ from transformers import (
 
 from common.triage import (
     load_tickets, build_prompt, generate_predictions, score, save_result,
-    load_results, print_card, param_report, plain_progress, OUT_DIR,
+    load_results, print_card, param_report, plain_progress, loss_every, OUT_DIR,
 )
 
 BASE_MODEL = "distilgpt2"
@@ -98,7 +98,7 @@ trainer = Trainer(
 )
 
 # One plain line per loss report, plus the model's answer to one test ticket
-# at that moment, so you can watch it learn.
+# 4 times along the way, so you can watch it learn.
 plain_progress(trainer, watch=(tokenizer, eval_rows[0]))
 t0 = time.time()
 trainer.train()

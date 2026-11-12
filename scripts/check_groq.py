@@ -1,4 +1,4 @@
-"""Check the OPTIONAL Groq setup used by Lab 5's STEP 6.
+"""Check the OPTIONAL Groq setup used by Lab 5's STEP 5.
 
     python scripts/check_groq.py
 
@@ -31,7 +31,7 @@ def main():
         print("  Codespace / Mac / Linux / Git Bash :  source scripts/setup-key.sh")
         print("  Windows PowerShell                 :  .\\scripts\\setup-key.ps1")
         print()
-        print("Remember: this key is OPTIONAL. Every lab except Lab 5's STEP 6 runs without it.")
+        print("Remember: this key is OPTIONAL. Every lab except Lab 5's STEP 5 runs without it.")
         return 1
     print(f"GROQ_API_KEY   = set ({len(key)} characters)")
 
@@ -92,7 +92,7 @@ def main():
         print(f"FAIL  {model} did not answer: {type(e).__name__}: {e}")
         return 1
 
-    print(f"OK    {model} responds. Lab 5's STEP 6 is ready to run.")
+    print(f"OK    {model} responds. Lab 5's STEP 5 is ready to run.")
     return 0
 
 

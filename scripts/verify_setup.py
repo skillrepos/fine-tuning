@@ -163,13 +163,13 @@ else:
            "tool - see your Local_Setup guide, section 'Merging the lab code'")
 
 # ---------------------------------------------------------------------------
-header("5. Optional: Groq key for Lab 5's STEP 6")
+header("5. Optional: Groq key for Lab 5's STEP 5")
 
 if os.environ.get("GROQ_API_KEY", "").strip():
     report(PASS, "GROQ_API_KEY", "set - run  python scripts/check_groq.py  to test it")
 else:
     report(WARN, "GROQ_API_KEY not set",
-           "fine - only Lab 5's optional STEP 6 needs it (see README.md)")
+           "fine - only Lab 5's optional STEP 5 needs it (see README.md)")
 
 # ---------------------------------------------------------------------------
 print()

@@ -16,6 +16,7 @@ worthwhile -- it is where the "boring" plumbing lives.
 import json
 import os
 import re
+import sys
 import time
 
 import torch
@@ -406,26 +407,54 @@ def quick_answer(model, tokenizer, ticket, max_new_tokens=24):
     return text.strip().split("\n")[0].strip()
 
 
-def plain_progress(trainer, watch=None):
-    """Swap the Trainer's progress bar and raw log lines for one plain line
-    every time it reports the loss.
+def loss_every(default):
+    """How often to print the loss while training: every `default` steps, or
+    the number given on the command line, as in:  --loss-every 6"""
+    if "--loss-every" not in sys.argv:
+        return default
+    i = sys.argv.index("--loss-every")
+    try:
+        n = int(sys.argv[i + 1])
+    except (IndexError, ValueError):
+        n = 0
+    if n < 1:
+        raise SystemExit("  --loss-every needs a whole number of steps, "
+                         "for example:  --loss-every 6")
+    return n
 
-    watch, if given, is (tokenizer, row): at each report, also print the
-    model's answer to that one test ticket, so you can see it learn.
+
+# Check a mistyped --loss-every as soon as a lab starts, not after the model loads.
+if "--loss-every" in sys.argv:
+    loss_every(1)
+
+
+def plain_progress(trainer, watch=None, answers=4):
+    """Swap the Trainer's progress bar and raw log lines for one plain line
+    every time it reports the loss (every logging_steps steps).
+
+    watch, if given, is (tokenizer, row): `answers` times during training,
+    also print the model's answer to that one test ticket, so you can see it
+    learn.
     """
     from transformers import TrainerCallback
     from transformers.trainer_callback import PrinterCallback, ProgressCallback
 
     trainer.remove_callback(ProgressCallback)
     trainer.remove_callback(PrinterCallback)
+    shown = {"next": 0, "every": 1, "last": 0}
 
     class PlainProgress(TrainerCallback):
         def on_train_begin(self, args, state, control, **kwargs):
+            every = args.logging_steps
+            what = ("each step" if every == 1 else
+                    f"every {every} steps (the average over those {every} steps)")
             print(f"\n  Training, {state.max_steps} steps. Loss = how wrong its guesses "
-                  "are (watch it fall):", flush=True)
+                  f"are,\n  printed {what}. Watch it fall:", flush=True)
             if watch:
-                print(f"  Its answer to test ticket 1, whose correct answer is\n"
-                      f"    {watch[1]['label']}", flush=True)
+                shown["every"] = max(1, -(-state.max_steps // answers))   # rounded up
+                shown["next"] = shown["every"]
+                print(f"  Every {shown['every']} steps, its answer to test ticket 1, "
+                      f"whose correct answer is\n    {watch[1]['label']}", flush=True)
                 print("    before training", flush=True)
                 show_answer(kwargs.get("model"))
 
@@ -433,14 +462,24 @@ def plain_progress(trainer, watch=None):
             if logs and "loss" in logs:
                 print(f"    step {state.global_step:>3} of {state.max_steps}   "
                       f"loss {float(logs['loss']):.3f}", flush=True)
-                show_answer(model)
+                if watch and state.global_step >= shown["next"]:
+                    show_answer(model, state.global_step)
 
-    def show_answer(model):
+        def on_train_end(self, args, state, control, model=None, **kwargs):
+            # If the last step had no loss report, still show the final answer.
+            if watch and shown["last"] < state.global_step:
+                print(f"    after step {state.global_step}", flush=True)
+                show_answer(model, state.global_step)
+
+    def show_answer(model, step=0):
         if watch and model is not None:
             answer = quick_answer(model, watch[0], watch[1]["ticket"])
             if len(answer) > 66:
                 answer = answer[:63] + "..."
             print(f"      answer: {answer or '(nothing)'}", flush=True)
+            shown["last"] = step
+            while shown["next"] <= step:
+                shown["next"] += shown["every"]
 
     trainer.add_callback(PlainProgress())
 
@@ -466,7 +505,7 @@ def model_size_mb(model):
 # the two settings below. Nothing else in the workshop depends on them.
 #
 # That is also one of the arguments for fine-tuning a model you own: Lab 5's
-# STEP 6 makes the point.
+# STEP 5 makes the point.
 FRONTIER_MODEL = "openai/gpt-oss-120b"   # 120 billion numbers, about 5 billion
                                          # used for each word it writes
 

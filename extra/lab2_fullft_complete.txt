@@ -18,7 +18,7 @@ from transformers import (
 
 from common.triage import (
     load_tickets, build_prompt, generate_predictions, score, save_result,
-    load_results, print_card, param_report, plain_progress, OUT_DIR,
+    load_results, print_card, param_report, plain_progress, loss_every, OUT_DIR,
 )
 
 BASE_MODEL = "distilgpt2"
@@ -89,7 +89,7 @@ args = TrainingArguments(
     learning_rate=3e-4,             # how big each adjustment is
     warmup_steps=0.05,              # start with small adjustments for the first 5% of steps
     lr_scheduler_type="cosine",     # ...then make them smaller again toward the end
-    logging_steps=18,               # report the loss 4 times
+    logging_steps=loss_every(3),    # print the loss every 3 steps (or: --loss-every N)
     save_strategy="no",             # don't save extra copies while training
     use_cpu=True,                   # run on the processor, not a graphics card
 )
@@ -103,7 +103,7 @@ trainer = Trainer(
 )
 
 # One plain line per loss report, plus the model's answer to one test ticket
-# at that moment, so you can watch it learn.
+# 4 times along the way, so you can watch it learn.
 plain_progress(trainer, watch=(tokenizer, eval_rows[0]))
 t0 = time.time()
 trainer.train()

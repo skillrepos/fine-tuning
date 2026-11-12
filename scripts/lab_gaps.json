@@ -23,7 +23,7 @@
       "# TODO 2: fill in the training settings below the output folder.\nargs = TrainingArguments(\n"
     ],
     [
-      "    num_train_epochs=2,             # 2 passes over the training data\n    per_device_train_batch_size=8,  # 8 examples per step\n    learning_rate=3e-4,             # how big each adjustment is\n    warmup_steps=0.05,              # start with small adjustments for the first 5% of steps\n    lr_scheduler_type=\"cosine\",     # ...then make them smaller again toward the end\n    logging_steps=18,               # report the loss 4 times\n    save_strategy=\"no\",             # don't save extra copies while training\n    use_cpu=True,                   # run on the processor, not a graphics card\n",
+      "    num_train_epochs=2,             # 2 passes over the training data\n    per_device_train_batch_size=8,  # 8 examples per step\n    learning_rate=3e-4,             # how big each adjustment is\n    warmup_steps=0.05,              # start with small adjustments for the first 5% of steps\n    lr_scheduler_type=\"cosine\",     # ...then make them smaller again toward the end\n    logging_steps=loss_every(3),    # print the loss every 3 steps (or: --loss-every N)\n    save_strategy=\"no\",             # don't save extra copies while training\n    use_cpu=True,                   # run on the processor, not a graphics card\n",
       ""
     ],
     [
@@ -79,6 +79,10 @@
     [
       "with model.disable_adapter():\n    before = quiz(model.get_base_model())\n",
       "# TODO 3: switch the adapter off for this one quiz, so it scores the original\n#         model: put the line below inside  with model.disable_adapter():\nbefore = quiz(model.get_base_model())\n"
+    ],
+    [
+      "folded = model.merge_and_unload()\n",
+      "# TODO 4: fold the adapter into the model's own numbers, so the two become\n#         one ordinary model: model.merge_and_unload()\nfolded = model\n"
     ]
   ]
 }

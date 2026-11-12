@@ -209,12 +209,21 @@ merged = merged.merge_and_unload()
 merged.save_pretrained(MERGED_DIR)
 tokenizer.save_pretrained(MERGED_DIR)
 merged_mb = folder_mb(MERGED_DIR)
+adapter_mb = folder_mb(ADAPTER_DIR)
 print(f"\n  Saved one ordinary model: {merged_mb:,.0f} MB. "
       "It runs without the adapter file or the LoRA library.")
+
+# Keep the adapter separate, or fold it in? What each choice needs in memory.
+print("\n  Memory needed to run it, either way:")
+a, b = int(nf4_mb + 0.5), int(adapter_mb + 0.5)     # whole MB, so the sum adds up
+print(f"    4-bit model + separate adapter : {a} + {b} = {a + b} MB")
+print(f"    one folded-in model (16 bits)  : {merged_mb:,.0f} MB")
+print("  -> Folding in gives up the 4-bit saving, unless the folded-in model is")
+print("     stored in 4 bits again afterwards.")
 
 save_result("qlora_smollm2", {}, {
     "model": BASE_MODEL, "method": "qlora (few-step test)",
     "steps": QLORA_STEPS, "batch_size": QLORA_BATCH, "train_seconds": round(elapsed),
-    "artifact_mb": round(folder_mb(ADAPTER_DIR), 1), "merged_mb": round(merged_mb),
+    "artifact_mb": round(adapter_mb, 1), "merged_mb": round(merged_mb),
     "fp32_mb": round(fp32_mb), "nf4_mb": round(nf4_mb),
 })
