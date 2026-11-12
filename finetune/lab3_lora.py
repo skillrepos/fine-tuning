@@ -45,7 +45,8 @@ if tokenizer.pad_token_id == tokenizer.eos_token_id:
 
 model = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.float32)
 
-# TODO 1: add the rest of the LoRA settings, including which layers get adapters.
+# TODO 1: add the rest of the LoRA settings, including which parts of the
+#         model get an adapter.
 peft_config = LoraConfig(
     r=16,
     lora_alpha=32,
@@ -70,9 +71,9 @@ def encode(example):
     prompt_ids = tokenizer(prompt, add_special_tokens=False)["input_ids"]
     full_ids = tokenizer(full, add_special_tokens=False)["input_ids"]
 
-    # -100 means "do not grade this position": the ticket we gave the model.
-    # TODO 3: build the labels: -100 for every ticket position, then the
-    #         answer's own token numbers.
+    # -100 means "don't grade": used for every token of the ticket we gave it.
+    # TODO 3: build the grading list: -100 ("don't grade") for each token of the
+    #         ticket, then the answer's own token numbers, which are graded.
     labels = full_ids
 
     return {"input_ids": full_ids,
@@ -86,6 +87,22 @@ row = tokenized["train"][0]
 n_ticket = sum(1 for l in row["labels"] if l == -100)
 print(f"  First example: {n_ticket} tokens of ticket (not graded), "
       f"{len(row['labels']) - n_ticket} of answer (graded)")
+
+# Write the first 3 training examples, split into what is graded and what is not.
+EXAMPLES_FILE = os.path.join(OUT_DIR, "lab3_examples.txt")
+with open(EXAMPLES_FILE, "w", encoding="utf-8") as f:
+    f.write("The first 3 training examples, split into the part that is graded and\n"
+            "the part that is not. Lab 2 graded every word; this lab grades only the\n"
+            "answer.\n")
+    for i, ex in enumerate(tokenized["train"].select(range(3))):
+        n = sum(1 for l in ex["labels"] if l == -100)
+        f.write(f"\n----- Example {i + 1} -----\n")
+        f.write(f"NOT GRADED ({n} tokens): the ticket we give the model\n")
+        f.write(tokenizer.decode(ex["input_ids"][:n]) + "\n")
+        f.write(f"GRADED ({len(ex['input_ids']) - n} tokens): what it must learn to write\n")
+        f.write(tokenizer.decode(ex["input_ids"][n:]) + "\n")
+print("  Wrote out/lab3_examples.txt: the graded and not-graded parts of 3 examples"
+      "\n  (see labs.md).")
 
 
 # ==========================================================================

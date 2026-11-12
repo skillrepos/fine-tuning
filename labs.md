@@ -1,6 +1,6 @@
 # Fine-Tuning Small AI Models: LoRA, QLoRA & Evaluation
 
-## Revision 1.15 - 11/11/26
+## Revision 1.16 - 11/11/26
 
 **Workshop labs**
 
@@ -132,7 +132,17 @@ time and disk space.**
 
 <br><br>
 
-1. Merge every highlighted block:
+**The idea.** Training shows a model the job over and over: a ticket, then its
+correct answer. Each time its guess is wrong, every one of its numbers is
+nudged a little. Here we retrain all 82 million numbers of distilgpt2, the
+model that scored 0% in Lab 1.
+
+<br><br>
+
+1. Merge the three highlighted blocks: how each ticket and its correct answer
+become one training example, the training settings (how long and how fast),
+and handing everything to the Trainer, Hugging Face's ready-made training
+tool.
 
 ```
 code -d extra/lab2_fullft_complete.txt finetune/lab2_fullft.py
@@ -154,12 +164,30 @@ format, then the labels. Which part keeps changing?
 
 <br><br>
 
-3. Read the line after training: how long it took, and the size of the saved
-model. Retraining everything saves a whole new copy, one per customer or task.
+3. While it trains, look at exactly what it trains on, in your second
+terminal:
+
+```
+cat out/lab2_examples.txt
+```
+
+*Optional:* to open it in an editor tab instead, run
+`code out/lab2_examples.txt`.
+
+Each example is the prompt, then the correct answer, then the end-of-text
+marker (`<|endoftext|>`) that teaches it where to stop. In this lab the model
+is graded on every word, the ticket included. Lab 3 changes that.
+
+![Lab 2 examples file](./images/ft-lab2-examples.png?raw=true "Three training examples, exactly as the model trains on them")
 
 <br><br>
 
-4. Read **RESULTS**:
+4. Back in the first terminal, read the line after training: how long it took,
+and the size of the saved model. Retraining everything saves a whole new copy, one per customer or task.
+
+<br><br>
+
+5. Read **RESULTS**:
 
 ![Lab 2 results](./images/ft-lab2-results.png?raw=true "Lab 2 next to the best prompt")
 
@@ -191,7 +219,9 @@ it, called an *adapter*.
 
 <br><br>
 
-1. Merge every highlighted block:
+1. Merge the three highlighted blocks: the LoRA settings (how big the adapters
+are, and which parts of the model get one), adding the adapters to the model,
+and grading only the answer.
 
 ```
 code -d extra/lab3_lora_complete.txt finetune/lab3_lora.py
@@ -212,13 +242,30 @@ ticket 1 change, as in Lab 2.
 
 <br><br>
 
-3. Read the line after training: the adapter is a few tens of MB; a full copy
+3. While it trains, look at the same kind of training examples as in Lab 2,
+now split into the part that is graded and the part that is not:
+
+```
+cat out/lab3_examples.txt
+```
+
+*Optional:* to open it in an editor tab instead, run
+`code out/lab3_examples.txt`.
+
+The ticket is still given to the model, but only the answer is graded. That is
+the third block you merged. (SmolLM2's end-of-text marker is `<|im_end|>`.)
+
+![Lab 3 examples file](./images/ft-lab3-examples.png?raw=true "Each training example split into the part that is graded and the part that is not")
+
+<br><br>
+
+4. Back in the first terminal, read the line after training: the adapter is a few tens of MB; a full copy
 would be about 1,400 MB. One shared model, plus a small adapter per customer
 or task.
 
 <br><br>
 
-4. When it starts answering the test tickets, look at the answers in your
+5. When it starts answering the test tickets, look at the answers in your
 second terminal. Run it again to see more.
 
 ```
@@ -237,7 +284,7 @@ model still get wrong?
 
 <br><br>
 
-5. Back in the first terminal, read **RESULTS**:
+6. Back in the first terminal, read **RESULTS**:
 
 ![Lab 3 results](./images/ft-lab3-results.png?raw=true "Lab 3 next to Lab 2 and the best prompt")
 
@@ -269,7 +316,8 @@ not time.**
 
 <br><br>
 
-1. Merge every highlighted block:
+1. Merge the three highlighted blocks: the 4-bit settings, loading the model
+with them, and folding the trained adapter into a full-size copy of the model.
 
 ```
 code -d extra/lab4_qlora_complete.txt finetune/lab4_qlora.py
@@ -337,7 +385,15 @@ check that training didn't make it worse at everything else.**
 
 <br><br>
 
-1. Merge every highlighted block:
+**The idea.** One overall score can hide problems. A model can do well on
+most tickets and badly on one kind, or learn your task and get worse at
+everything else. This lab looks for both.
+
+<br><br>
+
+1. Merge the three highlighted blocks: attaching your Lab 3 adapter to the
+original model, counting right answers for each category, and switching the
+adapter off to quiz the original model.
 
 ```
 code -d extra/lab5_eval_complete.txt finetune/lab5_eval.py

@@ -248,7 +248,7 @@
         "lines": 2
       },
       {
-        "anchor": "# TODO 3: build the labels: -100 for every ticket position, then the",
+        "anchor": "# TODO 3: build the grading list: -100 (\"don't grade\") for each token of the",
         "done": "labels = [-100] * len(prompt_ids) + full_ids[len(prompt_ids):]",
         "title": "Grade only the answer",
         "note": [
@@ -260,7 +260,7 @@
     ],
     "finetune/lab4_qlora.py": [
       {
-        "anchor": "# TODO 1: build the 4-bit settings -- the \"nf4\" format, math done in",
+        "anchor": "# TODO 1: build the 4-bit settings: the \"nf4\" 4-bit format, calculations done",
         "done": "bnb_config = BitsAndBytesConfig(",
         "title": "4-bit settings",
         "note": [
@@ -268,7 +268,7 @@
           "- `nf4`: a 4-bit format designed for the kind of numbers models hold",
           "- Calculations still run at 16 bits"
         ],
-        "lines": 4
+        "lines": 5
       },
       {
         "anchor": "BASE_MODEL,",
@@ -280,7 +280,7 @@
         ]
       },
       {
-        "anchor": "# TODO 2: attach the saved adapter to the 16-bit model (PeftModel.from_pretrained),",
+        "anchor": "# TODO 2: attach the saved adapter to the 16-bit copy of the model",
         "done": "merged = PeftModel.from_pretrained(base, ADAPTER_DIR)",
         "title": "Fold the adapter in",
         "note": [
@@ -288,12 +288,12 @@
           "- It is folded into a 16-bit copy, never the 4-bit one",
           "- The result is one ordinary model, with no separate adapter file"
         ],
-        "lines": 3
+        "lines": 4
       }
     ],
     "finetune/lab5_eval.py": [
       {
-        "anchor": "# TODO 1: attach the Lab 3 adapter (in LORA_DIR) to the base model.",
+        "anchor": "# TODO 1: attach the Lab 3 adapter (saved in LORA_DIR) to the original model.",
         "done": "model = PeftModel.from_pretrained(base, LORA_DIR)",
         "title": "Attach the Lab 3 adapter",
         "note": [

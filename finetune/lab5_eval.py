@@ -74,7 +74,7 @@ if not os.path.isdir(LORA_DIR):
 # Load the tokenizer saved next to the adapter: it has Lab 3's filler token.
 tokenizer = AutoTokenizer.from_pretrained(LORA_DIR)
 base = AutoModelForCausalLM.from_pretrained(BASE_MODEL, dtype=torch.float32)
-# TODO 1: attach the Lab 3 adapter (in LORA_DIR) to the base model.
+# TODO 1: attach the Lab 3 adapter (saved in LORA_DIR) to the original model.
 model = base
 
 eval_rows = list(load_tickets()["eval"])[:N_EVAL]

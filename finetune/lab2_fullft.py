@@ -53,7 +53,7 @@ eval_rows = list(ds["eval"])[:N_EVAL]
 
 def tokenize(example):
     # TODO 1: build the training text: the prompt, then the correct answer,
-    #         then the end-of-text token (tokenizer.eos_token) so the model
+    #         then the end-of-text marker (tokenizer.eos_token) so the model
     #         learns where to stop.
     text = ""
     return tokenizer(text, truncation=True, max_length=192)
@@ -61,7 +61,20 @@ def tokenize(example):
 
 tokenized = ds.map(tokenize, remove_columns=ds["train"].column_names)
 
-# Groups examples into batches and pads them to the same length.
+# Write the first 3 training examples, exactly as the model trains on them.
+EXAMPLES_FILE = os.path.join(OUT_DIR, "lab2_examples.txt")
+with open(EXAMPLES_FILE, "w", encoding="utf-8") as f:
+    f.write("The first 3 training examples, exactly as distilgpt2 trains on them:\n"
+            "the prompt, then the correct answer, then the end-of-text marker.\n"
+            "In this lab the model is graded on every word, the ticket included.\n")
+    for i, row in enumerate(tokenized["train"].select(range(3))):
+        f.write(f"\n----- Example {i + 1} ({len(row['input_ids'])} tokens, all graded) -----\n")
+        f.write(tokenizer.decode(row["input_ids"]) + "\n")
+print("\n  Wrote out/lab2_examples.txt: 3 training examples, as the model sees them"
+      "\n  (see labs.md).")
+
+# Groups the examples into batches of 8, adding filler so every example in
+# a batch is the same length.
 collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
 
@@ -77,7 +90,8 @@ args = TrainingArguments(
     output_dir=OUTPUT_DIR,
 )
 
-# TODO 3: give the Trainer the training data, the collator and the tokenizer.
+# TODO 3: give the Trainer the training examples, the batching helper above
+#         (collator) and the tokenizer (which turns text into token numbers).
 trainer = Trainer(
     model=model,
     args=args,
