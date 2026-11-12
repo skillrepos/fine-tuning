@@ -277,14 +277,15 @@ def write_answer_log(path, rows, columns, title=None, only_mistakes=False):
     so far to a text file. Rewritten after every answer, so the file fills in
     while the lab runs.
 
+    title may be several lines (joined with \n).
     columns is a list of (name, answers) pairs; answers may be shorter than
     rows while a model is still working. With only_mistakes=True, a ticket is
     listed only once the first column has answered it with a field wrong.
     """
     fields = ("category", "priority", "queue")
     width = max(len("correct answer"), *(len(name) for name, _ in columns))
-    lines = [title or "Each test ticket, its correct answer, and what each model wrote.",
-             "This file fills in as the lab runs.  \u2713 = right   \u2717 = wrong", ""]
+    lines = (title or "Each test ticket, its correct answer, and what each model wrote.").split("\n")
+    lines += ["This file fills in as the lab runs.  \u2713 = right   \u2717 = wrong", ""]
     for i, row in enumerate(rows):
         if only_mistakes:
             first = columns[0][1]
@@ -310,16 +311,6 @@ def write_answer_log(path, rows, columns, title=None, only_mistakes=False):
         lines.append("")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
-
-
-def open_in_editor(path):
-    """Open a file in a VS Code tab, if the `code` command is available."""
-    import shutil, subprocess
-    if shutil.which("code"):
-        subprocess.run(["code", path], stdout=subprocess.DEVNULL,
-                       stderr=subprocess.DEVNULL, check=False)
-        return True
-    return False
 
 
 def print_card(columns, note=None):

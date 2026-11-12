@@ -20,7 +20,7 @@ from peft import PeftModel
 
 from common.triage import (
     load_tickets, generate_predictions, groq_predictions, score, save_result,
-    load_results, print_card, extract_fields, write_answer_log, open_in_editor,
+    load_results, print_card, extract_fields, write_answer_log,
     OUT_DIR, FRONTIER_MODEL, RANDOM_GUESS,
 )
 
@@ -83,16 +83,14 @@ MISTAKES_FILE = os.path.join(OUT_DIR, "lab5_mistakes.txt")
 
 
 def log(answers):
-    write_answer_log(MISTAKES_FILE, eval_rows, [("Lab 3", answers)],
+    write_answer_log(MISTAKES_FILE, eval_rows, [("Lab 3 wrote", answers)],
                      title="Every test ticket the Lab 3 model got at least partly wrong.",
                      only_mistakes=True)
 
 
 log([])
-open_in_editor(MISTAKES_FILE)
-print("\n  Opened out/lab5_mistakes.txt: every ticket the model gets wrong.")
-print("  Read it while this step and the quiz run. Which part is wrong most often?")
-print("  (Click back in the terminal before you type your next command.)")
+print("\n  Writing out/lab5_mistakes.txt as it answers: every ticket the model")
+print("  gets wrong. Look at it while this step and the quiz run (see labs.md).")
 preds = generate_predictions(model, tokenizer, eval_rows, max_new_tokens=24,
                              on_answer=log)
 

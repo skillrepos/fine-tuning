@@ -23,7 +23,7 @@ from peft import LoraConfig, PeftModel, get_peft_model, prepare_model_for_kbit_t
 
 from common.triage import (
     load_tickets, build_prompt, save_result, load_results, model_size_mb,
-    plain_progress, open_in_editor, OUT_DIR,
+    plain_progress, OUT_DIR,
 )
 
 BASE_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"   # same model as Lab 3
@@ -113,10 +113,8 @@ def write_numbers_file(path, model, n=12):
 NUMBERS_FILE = os.path.join(OUT_DIR, "lab4_numbers.txt")
 try:
     write_numbers_file(NUMBERS_FILE, model)
-    open_in_editor(NUMBERS_FILE)
-    print("\n  Opened out/lab4_numbers.txt: the model's numbers before and after "
-          "4 bits.\n  Read it while the next step trains. (Click back in the "
-          "terminal before you type.)")
+    print("\n  Wrote out/lab4_numbers.txt: the model's numbers before and after "
+          "4 bits.\n  Look at it while the next step trains (see labs.md).")
 except Exception as e:   # the lab still works without this file
     print(f"\n  (Could not write out/lab4_numbers.txt: {e})")
 

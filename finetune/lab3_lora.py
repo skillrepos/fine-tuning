@@ -21,7 +21,7 @@ from peft import LoraConfig, get_peft_model
 from common.triage import (
     load_tickets, build_prompt, generate_predictions, score, save_result,
     load_results, print_card, param_report, plain_progress, write_answer_log,
-    open_in_editor, OUT_DIR,
+    OUT_DIR,
 )
 
 BASE_MODEL = "HuggingFaceTB/SmolLM2-360M-Instruct"
@@ -149,19 +149,22 @@ print(f"\n  Trained in {elapsed:.0f} seconds. Saved adapter: {adapter_mb:.0f} MB
 # best prompt's answer (Lab 1), Lab 2's and this lab's side by side.
 saved = load_results()
 ANSWERS_FILE = os.path.join(OUT_DIR, "lab3_answers.txt")
-earlier = [("best prompt", saved.get("bestprompt_smollm2", {}).get("answers", [])),
-           ("Lab 2", saved.get("fullft_distilgpt2", {}).get("answers", []))]
+earlier = [("Lab 1 wrote", saved.get("bestprompt_smollm2", {}).get("answers", [])),
+           ("Lab 2 wrote", saved.get("fullft_distilgpt2", {}).get("answers", []))]
 
 
 def log(answers):
-    write_answer_log(ANSWERS_FILE, eval_rows, earlier + [("Lab 3", answers)])
+    write_answer_log(ANSWERS_FILE, eval_rows, earlier + [("Lab 3 wrote", answers)],
+                     title="Each test ticket, its correct answer, and what each model "
+                           "wrote back.\n"
+                           "Lab 1 = SmolLM2 with the best prompt, no training.\n"
+                           "Lab 2 = distilgpt2, fully trained.   "
+                           "Lab 3 = SmolLM2 with a LoRA adapter.")
 
 
 log([])
-open_in_editor(ANSWERS_FILE)
-print("\n  Answering the test tickets. Opened out/lab3_answers.txt: which tickets")
-print("  did Lab 3 get right that the best prompt or Lab 2 got wrong?")
-print("  (Click back in the terminal before you type your next command.)")
+print("\n  Answering the test tickets, and writing out/lab3_answers.txt as it")
+print("  goes (see labs.md). Which tickets did Lab 3 fix?")
 preds = generate_predictions(peft_model, tokenizer, eval_rows, max_new_tokens=24,
                              on_answer=log)
 s = score(preds, eval_rows)

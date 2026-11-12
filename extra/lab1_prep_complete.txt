@@ -14,7 +14,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from common.triage import (
     load_tickets, build_prompt, pick_examples, extract_fields, right_format,
-    save_result, print_card, write_answer_log, open_in_editor,
+    save_result, print_card, write_answer_log,
     RANDOM_GUESS, CATEGORIES, ZERO_SHOT_SYSTEM, OUT_DIR,
 )
 
@@ -104,15 +104,15 @@ plain, best = [], []            # answers from STEP 2 and STEP 3
 
 def log():
     write_answer_log(ANSWERS_FILE, eval_rows,
-                     [("just the ticket", plain), ("best prompt", best)])
+                     [("distilgpt2 wrote", plain), ("SmolLM2 wrote", best)],
+                     title="Each test ticket, its correct answer, and what each untrained "
+                           "model wrote back.\n"
+                           "distilgpt2 got only the ticket. SmolLM2 got the best prompt.")
 
 log()
-opened = open_in_editor(ANSWERS_FILE) and open_in_editor(PROMPT_FILE)   # prompt on top
-print(f"\n  {'Opened' if opened else 'Open'} these two files; read them while "
-      "the models work:")
+print("\n  Wrote two files to look at while the models work (see labs.md):")
 print(f"    out/lab1_best_prompt.txt  the whole best prompt ({prompt_tokens} tokens)")
 print("    out/lab1_answers.txt      every answer, filled in as it comes")
-print("  (Click back in the terminal before you type your next command.)")
 
 
 # ==========================================================================

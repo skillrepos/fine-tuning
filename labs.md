@@ -58,21 +58,46 @@ python finetune/lab1_prep.py
 
 It tries two untrained models: distilgpt2 with just the ticket, then SmolLM2
 (the model Labs 3 and 4 train) with the best prompt we could write. It also
-opens two files in editor tabs. **Read them while it runs.** (Click back in
-the terminal before you type your next command.)
-
-- **out/lab1_best_prompt.txt**: the whole best prompt. Find the rules, the list
-of labels, and the 8 worked examples written as a conversation. Notice how
-long it is: it is sent with every ticket.
-- **out/lab1_answers.txt**: fills in as each model answers. What does
-distilgpt2 write instead of a label? Which part does the best prompt get
-wrong most often?
-
-![Lab 1 answers file](./images/ft-lab1-answers.png?raw=true "The answers file filling in while the lab runs")
+writes two files for you to look at while it runs.
 
 <br><br>
 
-3. Read **RESULTS**:
+3. While it runs, open a second terminal (click the **+** at the top right of
+the terminal panel) and look at the best prompt:
+
+```
+cat out/lab1_best_prompt.txt
+```
+
+*Optional:* to open it in an editor tab instead, run
+`code out/lab1_best_prompt.txt`.
+
+Find the rules, the list of labels, and the 8 worked examples, each a ticket
+followed by its correct answer. Notice how long it is: it is sent with every
+ticket.
+
+<br><br>
+
+4. In the second terminal, look at the answers so far. Run it again in a
+minute to see more.
+
+```
+cat out/lab1_answers.txt
+```
+
+*Optional:* to open it in an editor tab instead, run
+`code out/lab1_answers.txt`.
+The tab updates as the file fills in.
+
+Each ticket shows its correct answer, then what each model wrote back. What
+does distilgpt2 write instead of a label? Which part does SmolLM2 get wrong
+most often?
+
+![Lab 1 answers file](./images/ft-lab1-answers.png?raw=true "Each ticket, its correct answer, and what each model wrote back")
+
+<br><br>
+
+5. Back in the first terminal, read **RESULTS**:
 
 ![Lab 1 results](./images/ft-lab1-results.png?raw=true "Random guessing, just the ticket, and the best prompt")
 
@@ -84,7 +109,7 @@ ticket, and 9 of the 20 test tickets are P3.
 
 <br><br>
 
-4. **Think about it:** the best prompt is long, and you pay for it on every
+6. **Think about it:** the best prompt is long, and you pay for it on every
 request. Training puts that knowledge into the model instead, if it can beat
 this score.
 
@@ -191,15 +216,28 @@ ticket 1 change, as in Lab 2.
 would be about 1,400 MB. One shared model, plus a small adapter per customer
 or task.
 
-Then it opens **out/lab3_answers.txt** and fills it in as the trained model
-answers: each test ticket, with the best prompt's, Lab 2's and Lab 3's answers.
-Which tickets did Lab 3 fix? Which part does every model still get wrong?
+<br><br>
 
-![Lab 3 answers file](./images/ft-lab3-answers.png?raw=true "Each ticket with the best prompt's, Lab 2's and Lab 3's answers")
+4. When it starts answering the test tickets, look at the answers in your
+second terminal. Run it again to see more.
+
+```
+cat out/lab3_answers.txt
+```
+
+*Optional:* to open it in an editor tab instead, run
+`code out/lab3_answers.txt`.
+The tab updates as the file fills in.
+
+Each ticket shows its correct answer, then what Lab 1 (the best prompt),
+Lab 2 and Lab 3 wrote back. Which tickets did Lab 3 fix? Which part does every
+model still get wrong?
+
+![Lab 3 answers file](./images/ft-lab3-answers.png?raw=true "Each ticket, its correct answer, and what Labs 1, 2 and 3 wrote back")
 
 <br><br>
 
-4. Read **RESULTS**:
+5. Back in the first terminal, read **RESULTS**:
 
 ![Lab 3 results](./images/ft-lab3-results.png?raw=true "Lab 3 next to Lab 2 and the best prompt")
 
@@ -251,21 +289,31 @@ python finetune/lab4_qlora.py
 much a model 3 times bigger would need at 4 bits. Less than Lab 3's model at
 32 bits.
 
-Then it opens **out/lab4_numbers.txt**. Read it while STEP 2 trains: a few of
-the model's numbers before and after storing them in 4 bits. Each comes back
-rounded, and small ones often become exactly 0.
+<br><br>
+
+4. While STEP 2 trains, look at what 4 bits does to the model's numbers, in
+your second terminal:
+
+```
+cat out/lab4_numbers.txt
+```
+
+*Optional:* to open it in an editor tab instead, run
+`code out/lab4_numbers.txt`.
+
+Each number comes back rounded, and small ones often become exactly 0.
 
 ![Lab 4 numbers file](./images/ft-lab4-numbers.png?raw=true "A few of the model's numbers before and after 4 bits")
 
 <br><br>
 
-4. Read **STEP 2**: the loss still falls, so training works on the 4-bit
-model. Then the time per example, compared with Lab 3. Use QLoRA when memory
-is the problem.
+5. Back in the first terminal, read **STEP 2**: the loss still falls, so
+training works on the 4-bit model. Then the time per example, compared with
+Lab 3. Use QLoRA when memory is the problem.
 
 <br><br>
 
-5. Read **STEP 3**: the adapter folded into one ordinary model. Fold it in for
+6. Read **STEP 3**: the adapter folded into one ordinary model. Fold it in for
 one dedicated use; keep adapters separate to share one model across many
 customers.
 
@@ -312,27 +360,39 @@ python finetune/lab5_eval.py
 
 <br><br>
 
-4. While **STEP 2** has the Lab 3 model answer the test tickets, it opens
-**out/lab5_mistakes.txt**: every ticket the model gets at least partly wrong,
-next to the correct answer. Read it while this step and the quiz run. Which
-part is wrong most often?
+4. While **STEP 2** has the Lab 3 model answer the test tickets, look at
+every ticket it gets at least partly wrong, in your second terminal. Run it
+again to see more.
+
+```
+cat out/lab5_mistakes.txt
+```
+
+*Optional:* to open it in an editor tab instead, run
+`code out/lab5_mistakes.txt`.
+The tab updates as the file fills in.
+
+Which part is wrong most often?
 
 ![Lab 5 mistakes file](./images/ft-lab5-mistakes.png?raw=true "Every ticket the Lab 3 model got at least partly wrong")
 
-Then read **STEP 2**: right answers for each category, and the most common
-mix-up. An overall score says *if* there is a problem; this says *where*. The
-usual fix: more training examples of the weak category.
+<br><br>
+
+5. Back in the first terminal, read **STEP 2**: right answers for each
+category, and the most common mix-up. An overall score says *if* there is a
+problem; this says *where*. The usual fix: more training examples of the weak
+category.
 
 <br><br>
 
-5. Read **STEP 3**: a 20-question general-science quiz, before and after
+6. Read **STEP 3**: a 20-question general-science quiz, before and after
 training. The block you merged quizzes the same model twice: first with the
-adapter switched off (the original model), then with it on. Small changes are luck. A **big drop** would mean training damaged
-the model's other skills.
+adapter switched off (the original model), then with it on. Small changes are
+luck. A **big drop** would mean training damaged the model's other skills.
 
 <br><br>
 
-6. **Think about it:** which model would you put into production for
+7. **Think about it:** which model would you put into production for
 Northwind, and which two numbers from today support it?
 
 <br><br>
