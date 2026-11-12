@@ -132,10 +132,11 @@ time and disk space.**
 
 <br><br>
 
-**The idea.** Training shows a model the job over and over: a ticket, then its
-correct answer. Each time its guess is wrong, every one of its numbers is
-nudged a little. Here we retrain all 82 million numbers of distilgpt2, the
-model that scored 0% in Lab 1.
+**The idea.** Training repeats one exercise many times: the model reads a
+ticket, guesses the answer one word at a time, and its guess is compared with
+the correct answer. Then its numbers are nudged a little toward the right
+answer; the further off it was, the bigger the nudge. Here all 82 million
+numbers of distilgpt2, the model that scored 0% in Lab 1, get nudged.
 
 <br><br>
 
@@ -182,12 +183,36 @@ is graded on every word, the ticket included. Lab 3 changes that.
 
 <br><br>
 
-4. Back in the first terminal, read the line after training: how long it took,
+4. Still training? Look at training data other people share. Open this
+Hugging Face dataset in a browser tab (no account needed):
+
+[huggingface.co/datasets/Tobi-Bueck/customer-support-tickets](https://huggingface.co/datasets/Tobi-Bueck/customer-support-tickets)
+
+![Hugging Face dataset viewer](./images/ft-lab2-hf-dataset.png?raw=true "A public dataset of about 62,000 labeled support tickets")
+
+It holds about 62,000 support tickets (some in German), each with a subject,
+the text, a reply, and labels such as **type**, **queue** and **priority**:
+the same kind of job as ours. Click a few rows to read them, then compare:
+
+- **Labels:** which are like ours, and which are new?
+- **Size:** we train on 281 tickets, and our model still answers P3 for almost
+every priority. What might thousands more examples change?
+- **License:** the tag near the top says `cc-by-nc-4.0`: free to use, but not
+to sell. Check this before you train on anyone's data.
+
+*Optional:* [databricks-dolly-15k](https://huggingface.co/datasets/databricks/databricks-dolly-15k)
+is a different job: 15,000 instructions, each with a person's answer.
+[Kaggle](https://www.kaggle.com/datasets) shares datasets too (a free account
+is needed to download).
+
+<br><br>
+
+5. Back in the first terminal, read the line after training: how long it took,
 and the size of the saved model. Retraining everything saves a whole new copy, one per customer or task.
 
 <br><br>
 
-5. Read **RESULTS**:
+6. Read **RESULTS**:
 
 ![Lab 2 results](./images/ft-lab2-results.png?raw=true "Lab 2 next to the best prompt")
 
