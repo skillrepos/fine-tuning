@@ -214,6 +214,7 @@ extra/                  Completed versions of every lab file (.txt)
 finetune/               Lab skeleton files students edit
 images/                 Screenshots referenced by the docs
 scripts/                Setup, model download, environment check, Groq key
+tools/                  Ready-made tools the labs use: ask.py, look_inside.py
 labs.md                 *** THE LAB DOCUMENT — start here ***
 Local_Setup_Mac.md      Running the labs on your own Mac
 Local_Setup_Windows.md  Running the labs on your own Windows PC
@@ -232,6 +233,8 @@ requirements.txt        Python dependencies
 | `source scripts/setup-key.sh` | Sets the optional Groq key (Codespace, Mac, Linux, Git Bash) |
 | `.\scripts\setup-key.ps1` | Sets the optional Groq key (Windows PowerShell) |
 | `python scripts/check_groq.py` | Confirms the Groq key and the Lab 5 model work |
+| `python tools/ask.py` | After Lab 3: type your own tickets and see the answers before and after training |
+| `python tools/look_inside.py` | After Lab 3: what training put in your adapter, and how much it changes each part of the model |
 
 ## Running the labs
 

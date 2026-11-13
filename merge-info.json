@@ -81,7 +81,7 @@
         "title": "Add the adapters",
         "note": [
           "**Leaves the model's own numbers unchanged and adds small add-ons beside them. Only the add-ons are trained.**",
-          "- The printed line shows that only about 2% of all the numbers will be trained"
+          "- The printed line shows how much of the model will be trained: about 2% at r=16"
         ]
       },
       {
@@ -238,7 +238,7 @@
     "finetune/lab3_lora.py": [
       {
         "anchor": "r=16,",
-        "done": "r=16,                    # adapter size: bigger can learn more, but trains slower",
+        "done": "# adapter size: bigger can learn more, but trains slower",
         "title": "LoRA settings",
         "note": [
           "**How big the adapters are, and which parts of the model get one.**",
@@ -253,7 +253,7 @@
         "title": "Add the adapters",
         "note": [
           "**Leaves the model's own numbers unchanged and adds small add-ons beside them. Only the add-ons are trained.**",
-          "- The printed line shows that only about 2% of all the numbers will be trained"
+          "- The printed line shows how much of the model will be trained: about 2% at r=16"
         ],
         "lines": 2
       },

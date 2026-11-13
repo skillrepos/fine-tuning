@@ -249,6 +249,9 @@ save_result("lora_smollm2", s, {
 print("\n" + "=" * 70)
 print(f"RESULTS ({N_EVAL} test tickets)")
 print("=" * 70)
+share = (sum(p.numel() for p in peft_model.parameters() if p.requires_grad)
+         / sum(p.numel() for p in peft_model.parameters()))
 print_card([("best prompt", saved.get("bestprompt_smollm2", {})),
             ("Lab 2", saved.get("fullft_distilgpt2", {})), ("Lab 3", s)],
-           note="Lab 3 trained about 2% of a model 4x bigger than Lab 2's.")
+           note=f"Lab 3 trained {share:.1%} of a model 4x bigger than Lab 2's "
+                f"(adapter size r={peft_config.r}).")

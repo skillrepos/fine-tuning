@@ -295,7 +295,8 @@ Windows:
 | `source .venv/bin/activate` | `.\.venv\Scripts\Activate.ps1` |
 | `rm -rf out/` | `Remove-Item -Recurse -Force out` |
 | `nproc` | `$env:NUMBER_OF_PROCESSORS` |
-| `ls -lh out/smollm2-lora` (Lab 3) | `dir out\smollm2-lora` |
+| `ls -lh out/smollm2-lora` (Lab 3, optional) | `dir out\smollm2-lora` |
+| `du -sh out/*/` (Lab 5) | `Get-ChildItem out -Directory \| ForEach-Object { "{0,6:N0} MB  {1}" -f ((Get-ChildItem $_ -Recurse -File \| Measure-Object Length -Sum).Sum / 1MB), $_.Name }` |
 
 A few more differences, whichever terminal you use:
 
