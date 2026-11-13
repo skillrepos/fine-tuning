@@ -1,6 +1,6 @@
 # Fine-Tuning Small AI Models: LoRA, QLoRA & Evaluation
 
-## Revision 1.19 - 11/13/26
+## Revision 1.20 - 11/13/26
 
 **Workshop labs**
 
@@ -333,19 +333,39 @@ cat out/lab3_adapter.txt
 *Optional:* to open it in an editor tab instead, run
 `code out/lab3_adapter.txt`.
 
-Every part with an adapter now works like this:
+The adapter is a side path added to each of 224 parts of the model. Here is
+the part the file shows:
 
 ```mermaid
 flowchart LR
-    IN["what comes in"] --> OWN["the part's<br/>own table<br/>960 x 960<br/>never trained"]
-    IN --> A["table A<br/>r x 960<br/>trained"] --> B["table B<br/>960 x r<br/>trained"]
-    OWN --> ADD(("add"))
-    B --> ADD
-    ADD --> OUT["what goes out"]
+    IN["what comes in<br/>960 numbers"]
+    subgraph ORIG["original part: frozen"]
+        OWN["its own table<br/>960 x 960<br/>never trained"]
+    end
+    subgraph ADAPTER["the adapter: trained"]
+        A["table A<br/>squeezes 960<br/>down to r"] -- "r numbers" --> B["table B<br/>expands r<br/>back to 960"]
+    end
+    IN --> OWN
+    IN --> A
+    OWN --> ADD(("add the<br/>two results"))
+    B -- "the correction" --> ADD
+    ADD --> OUT["what goes out<br/>960 numbers"]
 ```
 
-Find your `r` in the sizes of tables A and B. Table B starts as all zeros, so
-before training the adapter changes nothing. Lab 4 looks at it again, trained.
+- **Top path:** the part's own table of numbers. Training never changes it.
+- **Bottom path:** the adapter, tables A and B. It adds a small correction to
+  the part's result.
+- **Why two tables?** One table able to correct the part directly would be as
+  big as the part itself: 921,600 numbers. Instead, A squeezes the 960 numbers
+  down to just `r`, and B expands them back to 960. At `r=16` that is 30,720
+  numbers, about 3% of the part. `r` is the width of that squeeze. (The slide
+  "The idea behind LoRA" shows it another way: A holds `r` patterns, and B says how much
+  of each pattern every row uses.)
+- **Before training:** table B is all zeros, so the correction is zero and the
+  model behaves exactly as before. Training fills in A and B.
+
+In the file, find your `r` in the sizes of tables A and B. Lab 4 looks at them
+again, trained.
 
 ![Lab 3 adapter file](./images/ft-lab3-adapter-file.png?raw=true "One part of the model: its own table of numbers, and the adapter's two small tables")
 
