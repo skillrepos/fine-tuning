@@ -1,6 +1,6 @@
 # Fine-Tuning Small AI Models: LoRA, QLoRA & Evaluation
 
-## Revision 1.18 - 11/12/26
+## Revision 1.19 - 11/13/26
 
 **Workshop labs**
 
@@ -289,7 +289,6 @@ save:
 | as given | `r=16` | `lora_alpha=32` |
 | big | `r=64` | `lora_alpha=128` |
 
-In a live class, pick a size your neighbors didn't.
 
 <br><br>
 
