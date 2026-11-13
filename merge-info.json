@@ -16,7 +16,7 @@
         "endAnchor": "messages.append({\"role\": \"user\", \"content\": ticket})",
         "title": "Build the best prompt",
         "note": [
-          "**Adds the worked examples to the prompt as a conversation.**",
+          "**Adds sample tickets with their correct answers to the prompt, as a conversation.**",
           "- Each example is a ticket followed by its correct answer, one per category",
           "- Examples teach the format well (100% right format), but not which label fits (30% category)",
           "- Open `out/lab1_best_prompt.txt` while the lab runs to see the whole prompt"
@@ -180,11 +180,11 @@
         "lines": 3
       },
       {
-        "anchor": "# TODO 2: add each worked example",
+        "anchor": "# TODO 2: add each sample ticket",
         "done": "for ex in examples:",
         "title": "Build the best prompt",
         "note": [
-          "**Adds the worked examples to the prompt as a conversation.**",
+          "**Adds sample tickets with their correct answers to the prompt, as a conversation.**",
           "- Each example is a ticket followed by its correct answer, one per category",
           "- Examples teach the format well (100% right format), but not which label fits (30% category)",
           "- Open `out/lab1_best_prompt.txt` while the lab runs to see the whole prompt"

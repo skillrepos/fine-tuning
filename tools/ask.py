@@ -28,7 +28,7 @@ ADAPTER_DIR = os.path.join(OUT_DIR, "smollm2-lora")   # what Lab 3 saved
 
 
 def best_prompt(ticket, examples, tok):
-    """Lab 1's best prompt: the rules, one worked example per category, then the ticket."""
+    """Lab 1's best prompt: the rules, one sample ticket and its answer per category, then the ticket."""
     messages = [{"role": "system", "content": ZERO_SHOT_SYSTEM}]
     for ex in examples:
         messages.append({"role": "user", "content": ex["ticket"]})

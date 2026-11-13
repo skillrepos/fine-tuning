@@ -87,7 +87,7 @@ few seconds and run it again. The same goes for every file the labs write.
 *Optional:* to open it in an editor tab instead, run
 `code out/lab1_best_prompt.txt`.
 
-Find the rules, the list of labels, and the 8 worked examples, each a ticket
+Find the rules, the list of labels, and the 8 sample tickets, each
 followed by its correct answer. Notice how long it is: it is sent with every
 ticket.
 
@@ -638,7 +638,7 @@ start over.
 
 | File or folder | Written by | What it is | Used by |
 |---|---|---|---|
-| `lab1_best_prompt.txt` | Lab 1 | The whole best prompt for one ticket: rules, labels, 8 worked examples | |
+| `lab1_best_prompt.txt` | Lab 1 | The whole best prompt for one ticket: rules, labels, 8 sample tickets with their correct answers | |
 | `lab1_answers.txt` | Lab 1 | Each test ticket, its correct answer, and both untrained models' answers, ✓ right / ✗ wrong | |
 | `results.json` | Labs 1-4 | Every run's scores, sizes, times and answers | Lab 3's answers file, Lab 5's table |
 | `lab2_examples.txt` | Lab 2 | 3 training examples, exactly as the model trains on them | |

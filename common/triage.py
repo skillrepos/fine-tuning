@@ -59,7 +59,7 @@ PROMPT_TEMPLATE = "### Ticket:\n{ticket}\n\n### Triage:\n"
 
 # The best prompt we can write for a model we are NOT fine-tuning: it lists
 # every category, priority and queue, and the exact answer format. Lab 1 gives
-# it (plus one worked example per category) to SmolLM2 before any training;
+# it (plus one sample ticket and its correct answer per category) to SmolLM2 before any training;
 # Lab 5 gives it to a large hosted model. Both are the fairest shot a prompt
 # can get.
 ZERO_SHOT_SYSTEM = f"""You are a support ticket triage system for Northwind Logistics.
@@ -178,7 +178,7 @@ def generate_predictions(model, tokenizer, rows, max_new_tokens=24, show=0,
 
 
 def pick_examples(train_rows, k=3):
-    """Pick k worked examples from the training data, each from a different category."""
+    """Pick k sample tickets (with their answers) from the training data, each from a different category."""
     examples, seen = [], set()
     for row in train_rows:
         if len(examples) >= k:

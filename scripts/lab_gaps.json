@@ -5,8 +5,8 @@
       "    # TODO 1: turn the prompt into token numbers, let the model write up to\n    #         max_new_tokens more, and turn just the new part back into text.\n    return \"\"\n"
     ],
     [
-      "    for ex in examples:                                            # each worked example:\n        messages.append({\"role\": \"user\", \"content\": ex[\"ticket\"]})       # a ticket...\n        messages.append({\"role\": \"assistant\", \"content\": ex[\"label\"]})   # ...and its answer\n    messages.append({\"role\": \"user\", \"content\": ticket})           # then the new ticket\n",
-      "    # TODO 2: add each worked example as a \"user\" ticket followed by its\n    #         \"assistant\" answer, then the new ticket as \"user\".\n"
+      "    for ex in examples:                                            # each sample ticket:\n        messages.append({\"role\": \"user\", \"content\": ex[\"ticket\"]})       # a ticket...\n        messages.append({\"role\": \"assistant\", \"content\": ex[\"label\"]})   # ...and its answer\n    messages.append({\"role\": \"user\", \"content\": ticket})           # then the new ticket\n",
+      "    # TODO 2: add each sample ticket as a \"user\" message followed by its\n    #         correct answer as \"assistant\", then the new ticket as \"user\".\n"
     ],
     [
       "        got = extract_fields(answer)                # the category, priority and queue it names\n        for field in (\"category\", \"priority\", \"queue\"):\n            right[field] += got[field] == row[field]    # right if it matches the correct answer\n",

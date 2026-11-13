@@ -40,12 +40,12 @@ def ask(model, tok, prompt, max_new_tokens):
 # How we build the best prompt
 # ==========================================================================
 def best_prompt(ticket, examples, tok):
-    """The best prompt we can write: the rules, worked examples, then the ticket."""
+    """The best prompt we can write: the rules, sample tickets with their correct answers, then the ticket."""
     # A chat model reads a conversation. "system" holds the instructions,
     # "user" is what a person wrote, "assistant" is the model's own reply.
     messages = [{"role": "system", "content": ZERO_SHOT_SYSTEM}]  # rules and every label
-    # TODO 2: add each worked example as a "user" ticket followed by its
-    #         "assistant" answer, then the new ticket as "user".
+    # TODO 2: add each sample ticket as a "user" message followed by its
+    #         correct answer as "assistant", then the new ticket as "user".
     # Join the conversation into the one long text the model actually reads.
     return tok.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
